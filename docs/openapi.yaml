@@ -1,0 +1,686 @@
+openapi: 3.0.3
+info:
+  title: Exiros On-Route Tracker — API
+  version: 0.1.0-mvp
+  license:
+    name: Propietario — iWA / Exiros (uso interno)
+  description: >
+    Contrato de la API del MVP (rastreo en ruta de camiones de chatarra).
+    Derivado 1:1 de `api-spec.md` (endpoints) y `database-spec.md` (entidades/enums).
+    Dos espacios de rutas: `/api/web/*` (JWT, staff) y `/api/mobile/*` (tripToken o X-App-Key, app sin login).
+    NOTA: este YAML es un PUENTE para alinear el front antes de que exista el backend.
+    Cuando el backend NestJS esté, @nestjs/swagger AUTOGENERA el OpenAPI desde el código y ESE pasa a ser
+    la fuente de verdad; este archivo se descarta para no mantener dos contratos.
+
+servers:
+  - url: /api
+    description: Base URL (local y demo)
+
+tags:
+  - name: Auth (web)
+    description: Login y perfil del staff (JWT)
+  - name: Users (web)
+    description: Gestión de monitoristas/admins (solo ADMIN)
+  - name: Destinations (web)
+    description: CRUD de destinos y geocercas
+  - name: Trips (web)
+    description: Monitoreo, detalle, cierre forzado y reporte de viajes
+  - name: Mobile
+    description: Endpoints de la app del operador (bootstrap, ingesta, cierre)
+
+# ---------------------------------------------------------------------------
+paths:
+  # ============================ WEB · Auth ============================
+  /web/auth/login:
+    post:
+      tags: [Auth (web)]
+      operationId: webAuthLogin
+      summary: Login (email+password → JWT)
+      security: []   # público
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            example: { email: "ana@exiros.com", password: "••••••" }
+      responses:
+        '200':
+          description: Autenticado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+              example:
+                accessToken: "eyJ..."
+                user: { id: "11111111-1111-4111-8111-111111111111", name: "Ana", email: "ana@exiros.com", role: "MONITOR", isActive: true }
+        '401':
+          $ref: '#/components/responses/Unauthorized'   # mensaje genérico, no filtra si el email existe
+
+  /web/auth/me:
+    get:
+      tags: [Auth (web)]
+      operationId: webAuthMe
+      summary: Perfil del usuario actual
+      security: [{ bearerJwt: [] }]
+      responses:
+        '200':
+          description: Perfil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPublic' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ============================ WEB · Users (ADMIN) ============================
+  /web/users:
+    post:
+      tags: [Users (web)]
+      operationId: webCreateUser
+      summary: Alta de monitorista/admin (solo ADMIN)
+      security: [{ bearerJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: Usuario creado (sin passwordHash)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPublic' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    get:
+      tags: [Users (web)]
+      operationId: webListUsers
+      summary: Listar usuarios (solo ADMIN)
+      security: [{ bearerJwt: [] }]
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserPublic' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /web/users/{id}:
+    patch:
+      tags: [Users (web)]
+      operationId: webUpdateUser
+      summary: Editar o dar de baja (isActive=false, soft delete) — solo ADMIN
+      security: [{ bearerJwt: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserRequest' }
+      responses:
+        '200':
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPublic' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ============================ WEB · Destinations ============================
+  /web/destinations:
+    post:
+      tags: [Destinations (web)]
+      operationId: webCreateDestination
+      summary: Crear destino + geocerca (solo ADMIN)
+      security: [{ bearerJwt: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDestinationRequest' }
+            example: { name: "Patio Monterrey", centerLat: 25.6866, centerLng: -100.3161, radiusMeters: 250 }
+      responses:
+        '201':
+          description: Destino creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Destination' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    get:
+      tags: [Destinations (web)]
+      operationId: webListDestinations
+      summary: Listar destinos
+      security: [{ bearerJwt: [] }]
+      parameters:
+        - name: active
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: Filtra por isActive
+      responses:
+        '200':
+          description: Lista de destinos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Destination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /web/destinations/{id}:
+    get:
+      tags: [Destinations (web)]
+      operationId: webGetDestination
+      summary: Detalle de destino
+      security: [{ bearerJwt: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Destino
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Destination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Destinations (web)]
+      operationId: webUpdateDestination
+      summary: Editar centro/radio o dar de baja (solo ADMIN)
+      security: [{ bearerJwt: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateDestinationRequest' }
+      responses:
+        '200':
+          description: Destino actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Destination' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ============================ WEB · Trips ============================
+  /web/trips:
+    get:
+      tags: [Trips (web)]
+      operationId: webListTrips
+      summary: Listado de viajes con filtros (alimenta tabla y reporte)
+      security: [{ bearerJwt: [] }]
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/TripStatus' } }
+        - { name: destinationId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date-time } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: Página de viajes
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Paginated'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/TripSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /web/trips/active:
+    get:
+      tags: [Trips (web)]
+      operationId: webListActiveTrips
+      summary: Viajes EN_RUTA con su último punto (alimenta el mapa, polling 15–20 min)
+      security: [{ bearerJwt: [] }]
+      responses:
+        '200':
+          description: Viajes activos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TripActive' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /web/trips/{id}:
+    get:
+      tags: [Trips (web)]
+      operationId: webGetTrip
+      summary: Detalle del viaje (campos, foto, observaciones y ruta completa)
+      security: [{ bearerJwt: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Detalle del viaje
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /web/trips/{id}/close:
+    post:
+      tags: [Trips (web)]
+      operationId: webCloseTrip
+      summary: Cierre forzado por admin/monitorista (observación obligatoria)
+      security: [{ bearerJwt: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CloseTripRequest' }
+            example: { observations: "Camión averiado, cierre administrativo." }
+      responses:
+        '200':
+          description: Viaje cerrado (closureType=MANUAL_ADMIN, closedById=usuario actual)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }   # ya CONCLUIDO
+
+  # ============================ WEB · Reports ============================
+  /web/reports/export:
+    get:
+      tags: [Trips (web)]
+      operationId: webExportReport
+      summary: Exporta .xlsx con las 13 columnas exactas (RN-07)
+      security: [{ bearerJwt: [] }]
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/TripStatus' } }
+        - { name: destinationId, in: query, required: false, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Archivo Excel (binario)
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ============================ MOBILE · Bootstrap (X-App-Key) ============================
+  /mobile/destinations:
+    get:
+      tags: [Mobile]
+      operationId: mobileListDestinations
+      summary: Catálogo activo para el dropdown del formulario (RN-09). Vacío → [] (RN-14)
+      security: [{ appKey: [] }]
+      responses:
+        '200':
+          description: Destinos para el selector
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MobileDestination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /mobile/trips:
+    post:
+      tags: [Mobile]
+      operationId: mobileCreateTrip
+      summary: Crea viaje + emite tripToken (CU-01). multipart con 7 campos + foto (S-04)
+      security: [{ appKey: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/CreateTripForm' }
+      responses:
+        '201':
+          description: Viaje creado. El tripToken se devuelve UNA vez (en BD solo su hash)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateTripResponse' }
+              example:
+                tripId: "22222222-2222-4222-8222-222222222222"
+                tripToken: "trk_live_9f3a..."
+                status: "EN_RUTA"
+                startedAt: "2026-06-18T15:00:00Z"
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }   # ya hay EN_RUTA en ese deviceId (RN-11)
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  # ============================ MOBILE · Ingesta (tripToken) ============================
+  /mobile/trips/{id}/locations:
+    post:
+      tags: [Mobile]
+      operationId: mobileIngestLocations
+      summary: Ingesta de lote de ubicaciones (GZIP, idempotente por batchId)
+      description: >
+        El body viaja con `Content-Encoding: gzip`. El schema describe el JSON ya descomprimido.
+        Idempotencia: si (tripId, batchId) ya existe → accepted:0, duplicateBatch:true (no error).
+        Si el viaje ya está CONCLUIDO → 200, puntos descartados, stopTracking:true (S-05).
+      security: [{ tripToken: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngestRequest' }
+            example:
+              batchId: "b-uuid-123"
+              points:
+                - { lat: 25.71, lng: -100.30, recordedAt: "2026-06-18T15:18:00Z" }
+                - { lat: 25.69, lng: -100.31, recordedAt: "2026-06-18T15:36:00Z" }
+      responses:
+        '200':
+          description: Lote procesado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestResponse' }
+              example: { accepted: 2, duplicateBatch: false, trip: { status: "CONCLUIDO", stopTracking: true } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /mobile/trips/{id}/close:
+    post:
+      tags: [Mobile]
+      operationId: mobileCloseTrip
+      summary: Cierre por operador (observación obligatoria, CU-05)
+      security: [{ tripToken: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CloseTripRequest' }
+            example: { observations: "Entrega cancelada por el cliente." }
+      responses:
+        '200':
+          description: Viaje cerrado (closureType=MANUAL_OPERATOR)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }   # ya CONCLUIDO
+
+# ---------------------------------------------------------------------------
+components:
+  securitySchemes:
+    bearerJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "Staff web. Authorization: Bearer <jwt>"
+    tripToken:
+      type: http
+      scheme: bearer
+      description: "App, viaje ya creado. Authorization: Bearer <tripToken>"
+    appKey:
+      type: apiKey
+      in: header
+      name: X-App-Key
+      description: Bootstrap móvil (leer destinos / crear viaje). Debilidad conocida (extraíble del APK) — ver api-spec §2.
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    Page:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+
+  responses:
+    BadRequest:
+      description: Error de validación
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unauthorized:
+      description: Sin credencial o inválida
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Sin permiso (rol insuficiente)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Recurso no existe
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Conflicto de estado (ej. viaje ya CONCLUIDO)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    PayloadTooLarge:
+      description: Payload o lote demasiado grande
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    TooManyRequests:
+      description: Rate-limit excedido
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  schemas:
+    # ---------- Enums ----------
+    Role:
+      type: string
+      enum: [ADMIN, MONITOR]
+    TripStatus:
+      type: string
+      enum: [EN_RUTA, CONCLUIDO]
+    # ClosureType se inlinea en TripSummary.closureType (para poder marcarlo nullable en OpenAPI 3.0)
+
+    # ---------- Error ----------
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string, example: BadRequest }
+        message: { type: string, example: "Texto en español para humanos" }
+        details:
+          type: object
+          additionalProperties: { type: string }
+          nullable: true
+          example: { campo: "motivo" }
+
+    # ---------- Paginación ----------
+    Paginated:
+      type: object
+      required: [data, total, page, pageSize]
+      properties:
+        data: { type: array, items: {} }
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+
+    # ---------- Auth ----------
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    LoginResponse:
+      type: object
+      required: [accessToken, user]
+      properties:
+        accessToken: { type: string }
+        user: { $ref: '#/components/schemas/UserPublic' }
+
+    # ---------- User ----------
+    UserPublic:
+      type: object
+      description: Usuario sin passwordHash
+      required: [id, email, name, role, isActive]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    CreateUserRequest:
+      type: object
+      required: [email, name, password, role]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string }
+        password: { type: string, format: password }
+        role: { $ref: '#/components/schemas/Role' }
+    UpdateUserRequest:
+      type: object
+      properties:
+        name: { type: string }
+        password: { type: string, format: password }
+        role: { $ref: '#/components/schemas/Role' }
+        isActive: { type: boolean, description: "false = baja (soft delete)" }
+
+    # ---------- Destination ----------
+    Destination:
+      type: object
+      required: [id, name, centerLat, centerLng, radiusMeters, isActive]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        centerLat: { type: number, format: double }
+        centerLng: { type: number, format: double }
+        radiusMeters: { type: integer, minimum: 1 }
+        isActive: { type: boolean }
+    MobileDestination:
+      type: object
+      description: Vista mínima del destino para el dropdown de la app (RN-13)
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    CreateDestinationRequest:
+      type: object
+      required: [name, centerLat, centerLng, radiusMeters]
+      properties:
+        name: { type: string }
+        centerLat: { type: number, format: double }
+        centerLng: { type: number, format: double }
+        radiusMeters: { type: integer, minimum: 1 }
+    UpdateDestinationRequest:
+      type: object
+      properties:
+        name: { type: string }
+        centerLat: { type: number, format: double }
+        centerLng: { type: number, format: double }
+        radiusMeters: { type: integer, minimum: 1 }
+        isActive: { type: boolean }
+
+    # ---------- Location ----------
+    LocationPoint:
+      type: object
+      required: [lat, lng, recordedAt]
+      properties:
+        lat: { type: number, format: double }
+        lng: { type: number, format: double }
+        recordedAt: { type: string, format: date-time }
+
+    # ---------- Trip ----------
+    TripSummary:
+      type: object
+      description: Vista pública del viaje (sin deviceId/tripTokenHash). Mapea a las 13 columnas del reporte.
+      required: [id, providerNumber, providerName, folio, frontPlate, destination, status, startedAt, photoUrl]
+      properties:
+        id: { type: string, format: uuid }
+        providerNumber: { type: string, description: "solo dígitos" }
+        providerName: { type: string }
+        folio: { type: string, description: "solo dígitos" }
+        frontPlate: { type: string }
+        rearPlate: { type: string, nullable: true }
+        destination: { $ref: '#/components/schemas/Destination' }
+        status: { $ref: '#/components/schemas/TripStatus' }
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: string, format: date-time, nullable: true }
+        durationMinutes: { type: integer, nullable: true, description: "derivado endedAt−startedAt; el front formatea HH:MM (RN-05)" }
+        closureType:
+          type: string
+          enum: [AUTO_GEOFENCE, MANUAL_OPERATOR, MANUAL_ADMIN]
+          nullable: true
+          description: "null mientras EN_RUTA"
+        observations: { type: string, nullable: true }
+        photoUrl: { type: string, format: uri, description: "URL servible de la foto de carga" }
+    TripActive:
+      type: object
+      description: Viaje EN_RUTA + su último punto, para el mapa
+      required: [trip]
+      properties:
+        trip: { $ref: '#/components/schemas/TripSummary' }
+        lastPoint:
+          $ref: '#/components/schemas/LocationPoint'
+          # opcional: ausente si el viaje aún no tiene puntos
+    TripDetail:
+      allOf:
+        - $ref: '#/components/schemas/TripSummary'
+        - type: object
+          properties:
+            route:
+              type: array
+              description: Puntos de la ruta ordenados por recordedAt
+              items: { $ref: '#/components/schemas/LocationPoint' }
+
+    CloseTripRequest:
+      type: object
+      required: [observations]
+      properties:
+        observations: { type: string, minLength: 1, description: "obligatorio en cierre manual" }
+
+    # ---------- Mobile: crear viaje ----------
+    CreateTripForm:
+      type: object
+      required: [providerNumber, providerName, folio, frontPlate, destinationId, deviceId, photo]
+      properties:
+        providerNumber: { type: string, pattern: '^[0-9]+$' }
+        providerName: { type: string }
+        folio: { type: string, pattern: '^[0-9]+$' }
+        frontPlate: { type: string, description: "regex placa MX" }
+        rearPlate: { type: string, description: "opcional, regex placa MX si viene" }
+        destinationId: { type: string, format: uuid }
+        deviceId: { type: string }
+        photo: { type: string, format: binary, description: "jpg/png, 1 archivo" }
+    CreateTripResponse:
+      type: object
+      required: [tripId, tripToken, status, startedAt]
+      properties:
+        tripId: { type: string, format: uuid }
+        tripToken: { type: string, description: "se devuelve UNA vez; guardar en el dispositivo" }
+        status: { $ref: '#/components/schemas/TripStatus' }
+        startedAt: { type: string, format: date-time }
+
+    # ---------- Mobile: ingesta ----------
+    IngestRequest:
+      type: object
+      required: [batchId, points]
+      properties:
+        batchId: { type: string, description: "idempotencia de lote" }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/LocationPoint' }
+    IngestResponse:
+      type: object
+      required: [accepted, duplicateBatch, trip]
+      properties:
+        accepted: { type: integer, description: "puntos válidos persistidos" }
+        duplicateBatch: { type: boolean }
+        trip:
+          type: object
+          required: [status, stopTracking]
+          properties:
+            status: { $ref: '#/components/schemas/TripStatus' }
+            stopTracking: { type: boolean, description: "true → la app detiene el GPS (CU-04)" }

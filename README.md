@@ -30,6 +30,7 @@ Leer en este orden al iniciar cualquier sesión:
 | [`docs/technical-spec.md`](docs/technical-spec.md) | **Plano de arquitectura:** monolito modular, capas por módulo, estructura del monorepo, seguridad transversal. |
 | [`docs/functional-spec.md`](docs/functional-spec.md) | Máquina de estados (En ruta → Concluido), reglas funcionales S-01…S-07. |
 | [`docs/api-spec.md`](docs/api-spec.md) | Contratos `/api/web/*` (JWT) y `/api/mobile/*` (tripToken), ingesta GZIP idempotente. |
+| [`docs/openapi.yaml`](docs/openapi.yaml) | **OpenAPI 3.0.3** (válido) — puente para generar/alinear el front antes del backend. Autogenerado por NestJS cuando exista el código. |
 | [`docs/database-spec.md`](docs/database-spec.md) | 4 entidades (User, Destination, Trip, Location) + borrador `schema.prisma`. |
 | [`docs/uiux-spec.md`](docs/uiux-spec.md) | Brief de UI/UX: 5 pantallas móvil (M1–M5) + 6 web (W0–W5). |
 | [`docs/adr/`](docs/adr/) | Architecture Decision Records (decisiones de arquitectura) — ver abajo. |

@@ -195,4 +195,4 @@ Reglas:
 - **Mapa web:** el front hace **polling** a `GET /api/web/trips/active` cada 15–20 min (no hay websockets en MVP, RN-12 / H7).
 - **La app conoce el cierre** (geocerca o admin) por la respuesta de `POST .../locations` (`stopTracking`), no por un endpoint aparte → menos llamadas, coherente con interacción mínima (RN-13).
 - **Bala trazadora (Slice 0):** usará un endpoint desechable y hardcodeado, NO este contrato; este spec es el objetivo al que converge la implementación.
-- **Pendiente:** formalizar como `openapi.yaml` es opcional para MVP; este .md cumple el "Hecho cuando" (un front puede mockear con él).
+- **OpenAPI:** formalizado en [`openapi.yaml`](openapi.yaml) (3.0.3, válido) como **puente** para alinear/generar el front antes de que exista el backend. Este `.md` sigue siendo la fuente narrativa; cuando exista el backend NestJS, `@nestjs/swagger` autogenera el OpenAPI desde el código y ese pasa a ser la fuente de verdad (este `.yaml` se descarta para no mantener dos contratos).
