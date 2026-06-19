@@ -1,0 +1,44 @@
+# === Secretos / entorno ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# === Node (backend NestJS / web React) ===
+node_modules/
+dist/
+build/
+coverage/
+*.log
+npm-debug.log*
+.npm/
+.eslintcache
+
+# === Android / Kotlin / Gradle ===
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.cxx/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+
+# === Prisma ===
+# (migraciones SÍ se versionan; solo se ignora el cliente generado si cae en repo)
+**/generated/
+
+# === IDE ===
+.idea/
+.vscode/
+*.iml
+
+# === SO ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Subidas locales (fotos MVP en disco del backend) ===
+uploads/

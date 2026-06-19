@@ -1,0 +1,621 @@
+# PLAN MAESTRO — Exiros On-Route Tracker (MVP)
+
+> **Qué es:** Solución independiente de rastreo en ruta de camiones de chatarra (patio vendedor → patio comprador), con app Android para operadores y portal web para monitoristas de Exiros.
+> **Metodología:** sigue `~/.agents/METODOLOGIA.md` (spec-driven, vertical slices, evidencia > suposición).
+> **Autor del desarrollo:** Rogelio (solo, "vibe coding" con IA).
+> **Ventana:** 16–26 jun 2026. Presentación **viernes 26 jun**. Hoy es **17 jun 2026** → quedan 9 días de trabajo + presentación.
+> **Naturaleza:** competencia interna iWA. El equipo ganador continúa el proyecto. El código de `main` será auditado (César/Emanuel) con rúbrica y probado por usuario (Neto). **La calidad del repo y que la demo no se rompa pesan tanto como las features.**
+
+---
+
+## ⚠️ DECISIONES QUE NECESITO QUE VALIDES (antes de Día 1)
+
+Estas dos bifurcan la mitad del plan. Mientras no las confirmes, asumo el valor por defecto marcado y sigo.
+
+### D1 — Stack de la app Android (el fork más caro)
+La estrategia de energía del doc (batching, distance filter, *activity recognition*, *fused location*, hibernación) es **exactamente** lo que ya resuelven librerías probadas. Opciones:
+
+| Opción | Velocidad solo+IA | Costo | Encaja con doc | Defensa en revisión de código |
+| :-- | :-- | :-- | :-- | :-- |
+| **A) Kotlin nativo** (FusedLocationProvider + ActivityRecognition + Foreground Service + Room + WorkManager) | Media (más código) | $0 | Perfecto (el doc describe estas APIs) | Alta — código propio, auditable |
+| **B) Flutter/React Native + `background_geolocation` (Transistorsoft)** | Alta (la librería ya hace batching/activity/distance) | $0 en build **debug** (la demo es debug); licencia solo para release | Perfecto (lo hace de fábrica) | Media — gran parte es la librería |
+
+- **Recomendación provisional: Opción A (Kotlin nativo).** Razón: para una competencia donde *te auditan el código y el ganador continúa*, tener el rastreo nativo propio es más defendible y sin dependencia de licencia. Claude escribe bien este código. Riesgo: más volumen de código y la curva de *foreground services* + permisos de Android 13/14.
+- **Cuándo cambiaría a B:** si el Día 2 (tracer bullet) el rastreo nativo en segundo plano da problemas de OEM (Xiaomi/Huawei matan servicios) y no avanzo, salto a B en modo debug y gano días.
+- **Decisión registrada en:** `ADR-004`.
+
+### D2 — Cómo el teléfono alcanza el backend en la demo (sin "cloud" formal)
+El doc dice que el despliegue cloud NO es requisito, pero un teléfono real necesita un backend alcanzable por internet para demostrar el flujo.
+
+| Opción | Esfuerzo | Demo en campo |
+| :-- | :-- | :-- |
+| **A) Túnel (cloudflared / ngrok)** sobre backend local | Mínimo | Sirve, pero la URL cambia y depende de tu laptop encendida |
+| **B) Deploy gratis (Railway / Render / Fly.io)** | Bajo (1–2 h) | Robusto, URL estable, demo independiente de tu laptop |
+
+- **Recomendación provisional: B (deploy gratis en Railway/Render).** No viola "no se requiere cloud" (no está prohibido, solo no es obligatorio), y elimina el riesgo de que la demo dependa de tu laptop + red local. Para desarrollo diario uso **túnel**, y subo a Railway desde el Día 5. Si prefieres cero cloud, me quedo en túnel.
+- **Decisión registrada en:** `ADR-009`.
+
+> El resto de decisiones técnicas las tomé yo y están justificadas más abajo. Si vetas alguna, lo registramos como cambio de ADR.
+
+---
+
+## 1. Resumen ejecutivo
+
+Construir en 8 días un MVP de rastreo en ruta compuesto por: **(1)** app Android en español de **acceso libre** (sin login) donde el fletero registra un viaje y la app rastrea su ubicación con consumo de batería <10%/jornada mediante envío por lotes; **(2)** **backend/API único** que ingiere lotes de coordenadas, detecta llegada por **geocerca** y cierra viajes automáticamente; **(3)** **portal web** con login para monitoristas: mapa de tránsito (refresco 15–20 min), administración de geocercas/destinos, gestión de usuarios y exportación de reportes a Excel.
+
+El camino crítico es el rastreo en segundo plano de Android. Se ataca primero con una **bala trazadora** extremo a extremo el Día 2–3 y luego se engorda por *vertical slices*. Despliegue y CI/CD se mantienen al mínimo demostrable (el proyecto los marca como no requeridos). Entregable del Día 8: MVP funcional, demo guionada y repo limpio para auditoría.
+
+---
+
+## 2. Problema y usuarios
+
+**Problema:** Exiros no tiene visibilidad del transporte de chatarra entre el patio del proveedor y su destino. No sabe dónde va cada camión, cuándo sale, cuándo llega ni cuánto tardó — lo que dificulta auditar el pago de fletes y detectar anomalías. La restricción dura: los choferes usan **su propio teléfono**, así que cualquier solución que les drene la batería o les pida login será rechazada en campo.
+
+**Usuarios:**
+- **Operador / fletero (externo):** maneja el camión. Quiere abrir la app, registrar el viaje en 30 segundos y olvidarse. No tiene cuenta, no le interesa la tecnología, cuida su batería y sus datos. → App Android, español, acceso libre.
+- **Monitorista (Exiros):** vigila los camiones en ruta desde la consola, fuerza cierres ante contingencias y descarga reportes. → Portal web, con login.
+- **Administrador (Exiros):** además gestiona destinos/geocercas y usuarios monitoristas. → Portal web, con login.
+- **(Implícito) Auditor de fletes:** consume el Excel para validar pagos. → Reporte exportable.
+
+---
+
+## 3. Huecos detectados
+
+Formato: **Qué falta → por qué importa → qué bloquea → riesgo si se ignora → pregunta → día tope.**
+
+| # | Hueco | Por qué importa | Bloquea | Riesgo | Pregunta a responder | Día tope |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| H1 | Stack Android no definido (ver D1) | Es el 90% del riesgo técnico | Todo el trabajo móvil | Empezar mal y perder días | ¿Nativo Kotlin o cross-platform con plugin? | D1 |
+| H2 | ✅ **RESUELTO** Catálogo de destinos | El destino alimenta dropdown y cierre automático | — | — | El catálogo lo crea el **Admin desde el CRUD web** (CU-08); son **datos de runtime, NO build-time** → no bloquea diseño ni código. La app solo muestra las opciones existentes. Datos reales = solo para que la demo sea creíble (seed opcional). **Caso borde:** catálogo vacío → operador no puede iniciar (destino obligatorio) → la app muestra estado vacío y bloquea inicio. | — |
+| H3 | Cómo se demuestra el flujo GPS sin manejar un camión real | La demo necesita movimiento real o simulado | Demo final | No poder mostrar el cierre por geocerca | ¿Se vale simular ruta (mock locations) en la presentación? | D2 |
+| H4 | Despliegue/alcance de red para teléfono (ver D2) | El teléfono debe llegar al backend | Slices 2+ y demo | Demo dependiente de laptop/red | Túnel vs deploy gratis | D2 |
+| H5 | Seguridad del endpoint de ingesta (app sin login) | Cualquiera podría inyectar viajes/coordenadas falsas | Slice 2, seguridad | Datos basura, spoofing | ¿Aceptamos token de dispositivo simple para MVP? | D4 |
+| H6 | ⚠️ **PARCIAL** Disponibilidad de teléfono Android físico | Emulador no prueba bien GPS real/acelerómetro/segundo plano | Pruebas de los slices 2–4 | Creer que "funciona" sin evidencia real | **NO hay teléfono hoy** (2026-06-18). Demo sobre **emulador** (UI + permisos + ruta GPS simulada → cierre por geocerca viable). **Batería real + OEM battery-killers NO verificables** hasta conseguir dispositivo (se hará "más adelante"). Deuda de validación registrada en ADR-004. | — |
+| H7 | Definición operativa de "tiempo real" | El doc dice mapa cada 15–20 min; "tiempo real" puede generar expectativa falsa | Alcance, demo | Reclamo de que "no es en vivo" | Confirmar con Julio que 15–20 min es aceptable | D1 |
+| H8 | Almacenamiento de la foto de carga | Decide infra y endpoint | Slice 8 | Rehacer subida de archivos | ¿Disco local del backend basta para MVP? | D3 |
+| H9 | Proveedor de mapas web | Google Maps requiere billing/API key; OSM/Leaflet es gratis | Slice "mapa" web | Bloqueo por falta de tarjeta/clave | ¿OK usar Leaflet + OpenStreetMap (gratis)? | D5 |
+| H10 | ✅ **RESUELTO** Volumen esperado | Dimensiona DB e índices | Decisiones de escala | Sobre/infra-dimensionar | ~200 usuarios, bajo volumen, usuario nunca toca la BD → índices simples bastan, sin sobre-dimensionar | — |
+| H11 | iOS | El doc de batería menciona CoreMotion/CoreLocation pero el alcance es Android | Alcance | Scope creep | Confirmar que iOS está fuera de alcance | D1 |
+
+---
+
+## 4. Preguntas críticas (para Julio / seniors el 17 por la tarde y el 19)
+
+1. **(H2/H7)** ¿Cuáles son los destinos reales y sus coordenadas+radio? ¿Confirmamos que "tiempo real" = refresco de 15–20 min es aceptable para el negocio?
+2. **(H3)** Para la demo del viernes 26, ¿se permite **simular la ruta** (inyección de ubicaciones de prueba) en lugar de manejar un camión real?
+3. **(H5)** Sin login en la app, ¿es aceptable para el MVP proteger la ingesta con un **token de dispositivo** simple (no usuario/contraseña), o el acceso es 100% abierto?
+4. **(H11)** ¿Confirmamos que **iOS queda fuera** del MVP (solo Android)?
+5. **(D2)** ¿Hay objeción a un **deploy gratuito** (Railway/Render) para la demo, dado que "cloud" no es requisito pero tampoco está prohibido?
+
+---
+
+## 5. MVP recomendado
+
+### 5.1 Obligatorio (define el éxito de la demo)
+
+| Funcionalidad | Usuario | Justificación | Dependencias | Criterio de aceptación |
+| :-- | :-- | :-- | :-- | :-- |
+| App abre directo en formulario (sin login) | Operador | Requisito explícito de adopción | — | No existe ninguna pantalla de login |
+| Formulario de inicio de viaje con sus 7 campos y validaciones | Operador | Origen de todo el dato | Backend `POST /trips` | Campos y reglas del doc §3.2 funcionan; viaje queda "En ruta" |
+| Foto de carga (cámara o galería) | Operador | Evidencia obligatoria | Storage | La foto se sube y se ve en el portal |
+| Rastreo en segundo plano con batching + distance filter + hibernación | Operador | Núcleo del producto y de la propuesta de batería | Stack Android (D1) | <10% batería/jornada (medido); envíos cada ~15–20 min |
+| Ingesta de lotes comprimidos | Sistema | Eficiencia de datos/batería | DB | `POST /trips/:id/locations` acepta lote GZIP y persiste |
+| Mapa de tránsito activo (refresco 15–20 min) | Monitorista | Visibilidad | Ingesta + web | Camión en ruta aparece y se mueve en el mapa |
+| Geocercas / destinos (CRUD) | Admin | Alimenta dropdown y cierre auto | DB | Alta/edición de destino con centro+radio |
+| Cierre automático por geocerca | Sistema | Diferenciador clave | Ingesta + geocercas | Punto dentro del radio → viaje "Concluido", app deja de rastrear |
+| Cierre manual operador (con Observaciones obligatorias) | Operador | Contingencias | — | Botón "Finalizar viaje" exige observación |
+| Cierre manual admin (con Observaciones) | Monitorista | Contingencias | — | Forzar cierre desde web exige observación |
+| Login + gestión de usuarios (web) | Admin/Monitorista | Seguridad de la consola | Auth | Alta/baja de monitoristas; rutas protegidas |
+| Reporte de viajes + exportación .xlsx (13 columnas) | Auditor | Auditoría de fletes | DB | Excel con exactamente las 13 columnas del doc §6 |
+
+### 5.2 Post-MVP (después del 26)
+
+| Funcionalidad | Por qué se posterga | Riesgo de hacerlo ahora |
+| :-- | :-- | :-- |
+| Notificaciones push (llegadas, alertas) | No es núcleo de visibilidad | Consume días del camino crítico |
+| Roles finos / auditoría de accesos | El MVP solo necesita login básico | Sobreingeniería de seguridad |
+| iOS | Alcance es Android | Duplica el esfuerzo móvil |
+| Dashboards/analytics avanzados | El Excel cubre la auditoría inicial | Distrae del flujo principal |
+| Reintentos/cola robusta offline-first avanzada | Room + WorkManager básico basta para MVP | Complejidad prematura |
+| Alertas de desvío de ruta / ETA | Requiere routing/mapas avanzados | Fuera de alcance temporal |
+
+### 5.3 No recomendado (sobreingeniería para 8 días)
+
+- Microservicios, Kafka/colas, Kubernetes.
+- CI/CD completo, E2E (Cypress/Playwright), pruebas de carga — **el proyecto los marca como no requeridos**.
+- PostGIS / geometrías complejas: la geocerca es un **círculo (centro+radio)** → basta haversine.
+- Multi-tenant, i18n más allá de español, modo oscuro, PWA offline para la web.
+- Optimización prematura del payload más allá de CSV+GZIP que pide el doc.
+
+---
+
+## 6. Forma de trabajo recomendada
+
+- **Spec-driven ligero:** antes de cada slice, una mini-spec (qué endpoint, qué pantalla, qué validación, criterio de aceptación). Las specs viven en `/docs`.
+- **Vertical slices:** cada entrega cruza UI → API → lógica → DB. Nunca "todo el backend primero".
+- **Bala trazadora primero (Día 2–3):** una coordenada hardcodeada que viaje Android → API → DB → punto en el mapa web. Conecta todo antes de pulir nada.
+- **Ciclo de 7 pasos por bloque** (situarse, anunciar, implementar, verificar, commitear, documentar, entregar).
+- **La verdad se ejecuta:** cada slice se prueba contra el sistema real; lo visual se VE renderizado (simulador/teléfono/captura), no solo "compila".
+- **Bitácora en este archivo:** notas fechadas, decisiones de una línea, bloqueos como `> Pendiente externo:`.
+- **Commits pequeños y descriptivos** en `main` (revisable por César/Emanuel en cualquier momento).
+- **Validación de código IA:** no se acepta código que no entienda; no cambios masivos sin revisar; no lógica de negocio en controllers; no endpoints sin validación.
+
+---
+
+## 7. Specs necesarias (mínimas, en `/docs`)
+
+| Spec | Contenido | Cuándo |
+| :-- | :-- | :-- |
+| **Product Spec** | Problema, usuarios, objetivo, alcance/fuera de alcance, métricas, flujos | D1 |
+| **Functional Spec** | Casos de uso, reglas de negocio, validaciones, errores, criterios de aceptación | D2 |
+| **Technical Spec** | Arquitectura, stack, módulos, patrones, estructura repo, seguridad, testing, deploy | D2 |
+| **API Spec (OpenAPI)** | Endpoints, métodos, request/response, errores, auth, ejemplos JSON | D3 |
+| **Database Spec** | Entidades, campos, relaciones, índices, datos sensibles, borrado | D3 |
+| **UI/UX Spec** | Pantallas web y Android, navegación, estados (carga/vacío/error) | D2–D5 |
+| **Test Spec** | Unit, integración, API, manuales; mínimos para entregar | D2 (vivo) |
+| **AI Development Spec** | Cómo dividir prompts, cómo revisar, qué no hace la IA sin validación | D1 |
+
+> **Métricas de éxito del MVP:** (1) batería <10%/jornada en prueba real; (2) cierre automático por geocerca funcionando; (3) Excel con las 13 columnas exactas; (4) demo extremo a extremo sin romperse.
+
+---
+
+## 8. Arquitectura recomendada
+
+**Monolito modular, organizado por features, con capas internas por módulo, y una API única que sirve tanto a la web como a Android.** Es lo que el propio prompt sugiere por defecto y es lo correcto aquí: un solo desarrollador, 8 días, dominio acotado.
+
+- **Por qué no más:** microservicios/hexagonal pura/event-driven serían sobreingeniería; añaden infra y ceremonia sin pagar valor en 8 días.
+- **Por qué no menos:** un script monolítico sin capas reprobaría la auditoría de código y sería difícil de extender (el ganador continúa).
+
+**Módulos del backend (features):** `trips`, `locations` (ingesta), `destinations` (geocercas), `users/auth`, `reports`.
+
+**Responsabilidades por capa:**
+- **Controller:** entrada HTTP, validación de forma (DTO), nada de lógica de negocio.
+- **Service:** reglas de negocio (validaciones, detección de geocerca, cierre de viaje).
+- **Repository (Prisma):** acceso a datos.
+- **Entity/Model:** esquema Prisma (persistencia).
+- **DTO:** entrada/salida; **Mapper:** entidad↔DTO.
+- **Exception filter:** errores consistentes (formato `{ error, message, details }`).
+- **Security:** JWT para web; token de dispositivo opcional para ingesta (ver H5).
+- **Config:** variables de entorno tipadas.
+
+```
+[Android App] --(POST /trips, POST /trips/:id/locations [GZIP])--> [API NestJS]
+[Web Portal]  --(REST + JWT)----------------------------------->  [API NestJS]
+                                                                      |
+                                                                 [PostgreSQL]
+                                                                      |
+                                                          [Storage fotos: disco/volumen]
+```
+
+---
+
+## 9. Patrones recomendados y NO recomendados
+
+**Recomendados:**
+| Patrón | Dónde | Qué resuelve | Riesgo si se usa mal |
+| :-- | :-- | :-- | :-- |
+| Repository | Acceso a datos por módulo | Aísla persistencia | Repos anémicos que filtran SQL a services |
+| Service Layer | Reglas de negocio | Controllers delgados | Meter acceso HTTP en el service |
+| DTO + Mapper | Bordes de la API | Contrato estable, no exponer entidades | Mappers que duplican lógica |
+| Dependency Injection | Nativo en NestJS | Testeo y desacople | Inyectar de más |
+| Strategy | Tipo de cierre (auto/manual-operador/manual-admin) | Variantes de cierre limpias | Strategy para 2 casos triviales = ruido |
+| Repository de ubicación + batch insert | Ingesta de lotes | Eficiencia de escritura | Inserts uno a uno |
+
+**NO recomendados (para este MVP):**
+- **Observer/Event-driven, CQRS, Saga:** la detección de geocerca se resuelve síncrono en el service de ingesta; eventos añaden complejidad sin valor.
+- **Factory/Builder:** los objetos son simples; constructores directos bastan.
+- **Facade:** no hay subsistemas complejos que ocultar todavía.
+
+---
+
+## 10. Stack técnico
+
+| Capa | Recomendado | Por qué | Alternativa descartada | Riesgo |
+| :-- | :-- | :-- | :-- | :-- |
+| **Backend** | **NestJS (TypeScript)** | Estructura por módulos/capas lista, DI nativa, validación con `class-validator`, OpenAPI integrado; ideal para auditoría | Express puro (menos estructura), Spring Boot (más lento para solo+IA en 8d) | Curva si no conoces Nest (mitigable) |
+| **Web** | **React + Vite + TypeScript** | Rápido, ecosistema mapas, DX con IA | Next.js (SSR innecesario aquí) | Bajo |
+| **Mapa** | **Leaflet + OpenStreetMap** | Gratis, sin API key/billing | Google Maps (requiere tarjeta/clave) | Tiles OSM con límites de uso (ok demo) |
+| **Android** | **Kotlin nativo** (D1, ver ADR-004) | Control total, $0, encaja con doc, defendible | Flutter/RN + plugin background-geolocation | Segundo plano + OEM battery killers |
+| **DB** | **PostgreSQL** | Robusta, gratuita, Prisma de 1ª clase | MySQL (igual válido), SQLite servidor (no escala) | Bajo |
+| **ORM** | **Prisma** (ver §11) | Type-safe, migraciones, DX excelente con IA | TypeORM, SQL manual | Batch insert grande: usar `createMany` |
+| **Auth (web)** | **JWT** (access token simple) | Suficiente para consola | Sessions/OAuth (sobra) | Guardar secreto fuera del repo |
+| **Storage fotos** | **Disco/volumen local del backend** (MVP) | Cero infra extra | S3 (post-MVP) | Pérdida si se recrea contenedor (aceptable MVP) |
+| **Excel** | **exceljs** | Control de columnas/formato | csv plano (menos pro) | Bajo |
+| **Validación** | **class-validator + class-transformer** | Integra con DTOs Nest | Zod (válido) | Bajo |
+| **Testing** | **Jest** (unit + e2e de API con Supertest) | Estándar Nest | — | No sobre-testear UI |
+| **Notificaciones** | **Ninguna en MVP** | Fuera de alcance | FCM (post-MVP) | — |
+| **IA en el producto** | **Ninguna** | El "AI" del doc es el Fused Location nativo, no IA propia | — | No confundir alcance |
+
+---
+
+## 11. ORM / Acceso a datos recomendado
+
+**Prisma.** 
+- **Ventajas:** modelo declarativo, migraciones versionadas, cliente type-safe (menos bugs, mejor para auditoría), `createMany` para lotes de ubicaciones, excelente con generación por IA.
+- **Desventajas:** consultas geoespaciales avanzadas no son su fuerte — **no las necesitamos** (geocerca = haversine en el service).
+- **Curva:** baja. **Velocidad MVP:** alta.
+- **Descartados:** TypeORM (más fricción/decoradores frágiles), SQL manual (rápido pero sin seguridad de tipos ni migraciones, peor para auditoría), Supabase/Firebase client (acoplan a un BaaS y el doc pide solución independiente y aislada).
+
+**Nota de rendimiento:** la ingesta inserta lotes de ~10 puntos cada 15–20 min por camión → volumen bajo; índices en `tripId`, `recordedAt` y `trip.status` bastan.
+
+---
+
+## 12. Docker y despliegue
+
+> El proyecto marca **despliegue cloud, CD y E2E como NO requeridos**. Mantener al **mínimo demostrable**.
+
+**Docker (solo conveniencia local, no obligatorio):**
+- `docker-compose.yml` con **PostgreSQL** (y opcionalmente el backend) para levantar la DB en un comando.
+- Variables en `.env` (no versionado); `.env.example` sí versionado.
+- Diferencia entornos: solo **local** vs **demo** (no hay staging). Una sola URL de API por entorno.
+- Riesgo común: persistencia de volúmenes y puertos ocupados → documentar en README.
+
+**Despliegue (ver D2/ADR-009):**
+- **Desarrollo:** backend local + **túnel** (cloudflared) para que el teléfono lo alcance.
+- **Demo:** **Railway/Render gratis** (backend + Postgres administrado) para una URL estable, independiente de tu laptop.
+- **Web:** build estático servido por el mismo backend o **Vercel/Netlify gratis**.
+- **Fotos:** volumen local (MVP).
+- **Logs/monitoreo:** logs estructurados de Nest + lo que dé el panel de Railway. Sin observabilidad avanzada.
+
+---
+
+## 13. Tipo de repositorio y Git
+
+**Monorepo** (un solo dev, despliegue y revisión más simples, IA con todo el contexto):
+
+```
+/exiros-on-route-tracker
+  /backend      # NestJS + Prisma
+  /web          # React + Vite
+  /android      # Kotlin
+  /docs         # specs + ADRs + API/DB spec
+  /infra        # docker-compose, .env.example
+  /scripts      # seed de destinos, simulador de ruta
+  PLAN.md
+  CONTEXT-AI.md
+  README.md
+```
+
+**Estrategia Git:**
+- Rama principal: **`main`** (auditada por César/Emanuel — mantenerla siempre verde y demostrable).
+- Ramas de feature por slice: `feat/slice-1-trip-start`, etc. PR/merge a `main` al cerrar cada slice.
+- **Commits convencionales:** `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`.
+- **Antes de merge a main:** compila, lint en verde, prueba del slice ejecutada, criterio de aceptación cumplido.
+- Como trabajas solo, los PR pueden ser auto-merge tras checklist, pero **cada slice = al menos un commit limpio** para que la auditoría tenga granularidad.
+
+---
+
+## 14. ADRs necesarias (en `/docs/adr/`)
+
+> ⚠️ **ESTADO REAL (2026-06-17):** la columna "Punto de partida" NO es una decisión cerrada. Es el borrador del arquitecto. **Cada ADR se trabaja una por una en el Bloque 0.5** (contexto · opciones reales · pros/cons · por qué · decisión) y SOLO ahí se fija. Nada en §8 (arquitectura) ni §10 (stack) es definitivo hasta que su ADR esté en estado `Aceptado` por Rogelio.
+
+Cada una con: contexto, decisión, alternativas, consecuencias +/−, riesgos, estado.
+
+| ADR | Tema | Punto de partida (a debatir en 0.5) | Estado |
+| :-- | :-- | :-- | :-- |
+| ADR-001 | Tipo de repositorio | **Monorepo split-ready** | ✅ Aceptado |
+| ADR-002 | Arquitectura + framework backend | **Monolito modular por features + NestJS** | ✅ Aceptado |
+| ADR-003 | Stack frontend web | **React + Vite + Leaflet/OSM** | ✅ Aceptado |
+| ADR-004 | **Stack Android** | Kotlin nativo vs Flutter/RN+plugin (D1) | ✅ Aceptado (Kotlin nativo + Plan B) |
+| ADR-005 | Base de datos | **PostgreSQL** | ✅ Aceptado |
+| ADR-006 | ORM / acceso a datos | **Prisma** (independiente del motor) | ✅ Aceptado |
+| ADR-007 | Autenticación | JWT web; token de dispositivo en ingesta (H5) | ✅ Aceptado (JWT web + tripToken móvil) |
+| ADR-008 | Docker | Solo Postgres local; no obligatorio | ✅ Aceptado |
+| ADR-009 | **Despliegue** | Túnel en dev + Railway/Render en demo (D2) | ✅ Aceptado (default, pend. Julio) |
+| ADR-010 | Estrategia de pruebas | Jest unit + e2e API; manuales en teléfono real | ✅ Aceptado |
+| ~~ADR-011~~ | ~~Uso de IA~~ | **MOVIDO:** no es ADR del proyecto. Cómo usamos IA es **metodología interna** (`~/.agents/METODOLOGIA.md` + `CONTEXT-AI.md`), no un entregable ni integración visible para el cliente/auditoría del producto. | ❌ No aplica como ADR |
+| ADR-012 | Geocerca | **Haversine en service, sin PostGIS** (spatial = upgrade path) | ✅ Aceptado (pend. confirmar) |
+
+---
+
+## 15. Vertical slices
+
+> ⚠️ **Estas slices son del borrador del arquitecto (pre-Fase 0).** La versión ejecutable, ordenada y con "Hecho cuando" vive en **§21** y se construye en el **Bloque 0.7**, DESPUÉS de cerrar las specs de diseño. **No son la fuente de orden de trabajo todavía.**
+>
+> **Sobre Slice 0 (bala trazadora) vs API Spec:** la bala trazadora es *deliberadamente* ligera en spec — su único trabajo es matar el riesgo #1 (¿Android en segundo plano → backend → DB → mapa funciona siquiera?) con UN endpoint desechable y hardcodeado. NO espera al OpenAPI completo. En nuestra secuencia actual (diseño primero), el **API Spec (0.3) queda listo ANTES de cualquier código**, y la bala trazadora es implementación (Fase 1+), así que no hay contradicción: el spec define el contrato objetivo, la bala prueba la tubería.
+
+Orden por dependencia + riesgo alto temprano. Cada slice: UI → endpoint → lógica → persistencia → validación → errores → prueba → criterio.
+
+- **Slice 0 — Bala trazadora (D2–D3):** Android envía 1 coordenada hardcodeada → `POST /locations` → DB → punto en mapa web. *Hecho cuando:* veo el punto en el mapa desde un envío real del teléfono.
+- **Slice 1 — Inicio de viaje (D3–D4):** formulario Android (7 campos + validaciones) → `POST /trips` → DB → aparece en lista de "activos" en web. *Hecho cuando:* un viaje creado en el móvil se ve "En ruta" en la web.
+- **Slice 2 — Rastreo por lotes + energía (D4):** captura pasiva (2–3 min), distance filter (300–500 m), hibernación por inactividad, envío GZIP cada 15–20 min → `POST /trips/:id/locations` → mapa se actualiza. *Hecho cuando:* el camión se mueve en el mapa y la batería baja <10%/jornada en prueba real.
+- **Slice 3 — Cierre automático por geocerca (D4–D5):** service detecta punto dentro del radio → viaje "Concluido" + orden de detener GPS (la app la recibe en el siguiente sync). *Hecho cuando:* al entrar al radio, el viaje se cierra solo y la app deja de rastrear.
+- **Slice 4 — Cierres manuales (D5):** botón "Finalizar viaje" en app (Observaciones obligatorias) + forzar cierre desde web (Observaciones). *Hecho cuando:* ambos cierres exigen observación y quedan registrados con su tipo.
+- **Slice 5 — Destinos/geocercas + dropdown (D5):** CRUD web de destinos (centro+radio) que alimenta el dropdown del formulario móvil. *Hecho cuando:* un destino nuevo aparece en el selector de la app.
+- **Slice 6 — Reportes + Excel (D7):** listado y `GET /reports/export` con las 13 columnas exactas. *Hecho cuando:* el .xlsx descargado tiene exactamente las 13 columnas del doc §6.
+- **Slice 7 — Auth web + usuarios (D7):** login JWT + alta/baja de monitoristas + rutas protegidas. *Hecho cuando:* sin token no se entra; admin da de alta un monitorista que luego entra.
+- **Slice 8 — Foto de carga (D4, junto a Slice 1):** captura/galería → subida → visible en portal. *Hecho cuando:* la foto del viaje se ve en el detalle web.
+
+---
+
+## 16. Estrategia de uso de IA
+
+- **Spec antes que código:** ningún prompt de implementación sin mini-spec del slice.
+- **Estructura de cada prompt:** contexto · objetivo · archivos involucrados · restricciones · criterios de aceptación · código esperado · pruebas esperadas · validación manual · commit sugerido.
+- **Reglas duras:** no aceptar código que no entiendas; no cambios masivos sin revisar; no cambiar arquitectura sin actualizar ADR; no cambiar API sin actualizar API Spec; no lógica de negocio en controllers; no endpoints sin validación; no subir secretos.
+- **La IA genera código Y pruebas** cuando aplique.
+- **Anti-alucinación:** verificar que cada archivo/flag/endpoint citado exista antes de construir encima; probar contra el sistema real, no contra la imaginación.
+- **División de prompts por slice**, no "hazme toda la app".
+
+---
+
+## 17. Plan de 8 días
+
+> ⚠️ **Borrador original del arquitecto.** Asignaba días antes de existir la Fase 0 de diseño. Se **reconcilia en el Bloque 0.7** con el backlog de §21. Úsalo como referencia de ritmo, no como secuencia fija.
+
+> Fechas reales. **Sáb 20 y Dom 21 son fin de semana** → tratados como buffer/ritmo ligero. Puntos con seniors: **19 jun (dudas)** y **23 jun (arquitectura)**. Dudas funcionales con Julio cuando se necesiten.
+
+### Día 1 — Mié 17 jun · Análisis y cimientos de decisión
+- **Objetivo:** cerrar análisis, validar D1/D2 y preguntas críticas, dejar specs base.
+- **Tareas:** revisar este PLAN con stakeholders; hacer las 5 preguntas críticas (Julio/seniors esta tarde); confirmar teléfono físico (H6); escribir Product Spec + AI Dev Spec; crear monorepo + scaffolding vacío; ADR-001/002/003/005/006.
+- **IA puede:** generar scaffolding, drafts de specs y ADRs.
+- **Humano valida:** D1 (stack Android), D2 (deploy), respuestas de Julio.
+- **Entregables:** repo inicial, specs base, ADRs propuestas.
+- **Criterio:** D1 y D2 resueltas o con default asumido y registrado.
+
+### Día 2 — Jue 18 jun · Specs técnicas + arranque bala trazadora
+- **Objetivo:** Technical/Functional/UI Spec base + empezar Slice 0.
+- **Tareas:** Technical Spec, Functional Spec, esqueleto NestJS (módulo `locations`), Postgres en Docker, esquema Prisma inicial, endpoint `POST /locations` mínimo; arrancar proyecto Android vacío que mande una coordenada.
+- **IA:** scaffolding backend, Prisma schema, endpoint mínimo.
+- **Humano valida:** que el endpoint reciba y persista (curl real).
+- **Entregables:** backend que guarda una coordenada; specs técnicas.
+- **Criterio:** `curl` inserta una coordenada y se ve en DB.
+
+### Día 3 — Vie 19 jun · Bala trazadora completa + API/DB Spec *(día de dudas con seniors)*
+- **Objetivo:** cerrar **Slice 0** y arrancar **Slice 1**; API Spec (OpenAPI) + Database Spec; túnel/deploy listo (D2).
+- **Tareas:** Android envía coordenada real → API → DB → **punto en mapa web (Leaflet)**; API Spec; Database Spec; seed de destinos (datos provisionales si H2 sigue abierto).
+- **IA:** OpenAPI, componentes React de mapa, seed script.
+- **Humano valida:** ver el punto en el mapa desde el teléfono real; aprovechar la sesión con seniors para validar arquitectura.
+- **Entregables:** flujo extremo a extremo vivo; API/DB Spec.
+- **Criterio (Hecho cuando):** una coordenada enviada desde el teléfono aparece en el mapa web.
+
+### Día 4 — Sáb 20 jun · Backend del flujo crítico + energía Android *(ritmo ligero)*
+- **Objetivo:** **Slice 1** (inicio de viaje), **Slice 2** (rastreo por lotes/energía), **Slice 8** (foto).
+- **Tareas:** `POST /trips` + DTOs/validaciones; formulario Android con 7 campos; captura local (Room) + batching GZIP + distance filter + hibernación; subida de foto; ingesta de lote `POST /trips/:id/locations`; pruebas Jest del service de viajes.
+- **IA:** DTOs, validaciones, service, código de batching, lote/GZIP.
+- **Humano valida:** medir batería en prueba real; ver viaje "En ruta" en web; foto visible.
+- **Entregables:** viaje creado desde móvil con rastreo por lotes funcionando.
+- **Criterio:** camión se mueve en el mapa; batería <10%/jornada en prueba.
+
+### Día 5 — Dom 21 jun · Geocercas, cierres y conexión web *(ritmo ligero)*
+- **Objetivo:** **Slice 3** (cierre auto), **Slice 4** (cierres manuales), **Slice 5** (destinos/geocercas + dropdown).
+- **Tareas:** haversine en service de ingesta → cierre automático + orden de detener GPS; botón "Finalizar viaje" (Observaciones) en app; forzar cierre desde web; CRUD web de destinos que alimenta el dropdown móvil.
+- **IA:** lógica geocerca, endpoints de cierre, CRUD destinos, UI web.
+- **Humano valida:** simular ruta entrando al radio → ver cierre automático.
+- **Entregables:** ciclo de vida del viaje completo.
+- **Criterio:** al entrar al radio el viaje se cierra solo y la app detiene rastreo.
+
+### Día 6 — Lun 22 jun · Portal web sólido + Android pulido
+- **Objetivo:** consolidar webapp (mapa de tránsito, detalle de viaje, estados de carga/vacío/error) y estabilizar la app Android (permisos Android 13/14, foreground service notif).
+- **Tareas:** mapa de tránsito activo con refresco 15–20 min; pantalla de detalle con foto y observaciones; manejo de errores de red en la app; reintentos básicos de lote.
+- **IA:** componentes web, manejo de estados, lógica de reintento.
+- **Humano valida:** flujo web completo navegado a mano; app sobrevive a pérdida de red.
+- **Entregables:** web y app presentables.
+- **Criterio:** monitorista ve y opera viajes activos sin errores visibles.
+
+### Día 7 — Mar 23 jun · Auth, reportes, integración y seguridad mínima *(día de arquitectura con seniors)*
+- **Objetivo:** **Slice 6** (reportes/Excel), **Slice 7** (auth web + usuarios), endurecimiento.
+- **Tareas:** login JWT + guardas de ruta + gestión de monitoristas; `GET /reports/export` .xlsx con las 13 columnas; token de dispositivo en ingesta (si H5 aprobado); exception filter global; validación en todos los endpoints; pasada de seguridad (secretos fuera del repo, CORS, rate-limit básico).
+- **IA:** auth module, exportador Excel, filtros de error.
+- **Humano valida:** descargar Excel y verificar columnas; intentar entrar sin token.
+- **Entregables:** consola segura + reporte auditable.
+- **Criterio:** Excel con exactamente 13 columnas; rutas web protegidas.
+
+### Día 8 — Mié 24 jun · Despliegue demo, pruebas, demo y backlog
+- **Objetivo:** dejar todo demostrable y documentado.
+- **Tareas:** deploy a Railway/Render (D2); README de arranque; **script simulador de ruta** para la demo (H3); ensayo de demo extremo a extremo; checklist final; backlog post-MVP; pulir repo para auditoría.
+- **IA:** README, simulador de ruta, limpieza.
+- **Humano valida:** ensayo completo de la demo sin romperse.
+- **Entregables:** MVP desplegado, demo guionada, docs.
+- **Criterio:** demo extremo a extremo corre dos veces seguidas sin fallar.
+
+### Día 9 — Jue 25 jun · Buffer y congelación
+- Buffer para imprevistos, corrección de bugs de la prueba de usuario (Neto), congelar `main`, preparar la presentación.
+
+### Vie 26 jun — Presentación.
+
+---
+
+## 18. Riesgos y mitigaciones
+
+| Riesgo | Impacto | Prob. | Mitigación |
+| :-- | :-- | :-- | :-- |
+| Rastreo en segundo plano inestable / OEM matan el servicio | Alto (núcleo) | Media | Foreground service + notificación persistente; probar en teléfono físico desde D2; plan B = plugin (D1) |
+| No poder demostrar movimiento real | Alto | Media | Script simulador de ruta + mock locations; confirmar con Julio (H3) |
+| Curva de Kotlin/segundo plano consume días | Alto | Media | Bala trazadora temprana; si D2 no avanza, saltar a plugin |
+| Faltan datos reales de destinos/geocercas | Medio | Alta | Seed provisional; pedir a Julio (H2) con fecha tope D3 |
+| Demo dependiente de laptop/red | Medio | Media | Deploy gratis (D2) |
+| Ingesta sin auth → datos basura | Medio | Media | Token de dispositivo (H5) |
+| Solo dev + alcance amplio en 8 días | Alto | Media | Priorizar slices obligatorios; post-MVP claro; fin de semana como buffer |
+| Auditoría de código encuentra deuda | Medio | Media | Capas limpias, commits por slice, validación de todo código IA |
+| Tiles OSM con límites en demo | Bajo | Baja | Cachear/usar provider alterno si falla |
+| Geocercas con falsos positivos (ruta pasa cerca del destino) | Medio | Baja | Radio ajustable + requerir punto dentro en lote, no en tránsito |
+
+---
+
+## 19. Checklist final (antes del 26)
+
+**App Android**
+- [ ] Abre directo en el formulario (sin login)
+- [ ] 7 campos con validaciones del doc §3.2 (numéricos estrictos, placas flexibles MX, destino dropdown)
+- [ ] Foto de carga obligatoria (cámara o galería)
+- [ ] Rastreo por lotes (captura 2–3 min, envío 15–20 min, GZIP)
+- [ ] Distance filter (300–500 m) e hibernación por inactividad
+- [ ] Botón "Finalizar viaje" con Observaciones obligatorias
+- [ ] Batería <10%/jornada medida en prueba real
+
+**Portal web**
+- [ ] Login y rutas protegidas
+- [ ] Mapa de tránsito activo (refresco 15–20 min)
+- [ ] CRUD de destinos/geocercas (centro+radio)
+- [ ] Forzar cierre con Observaciones
+- [ ] Gestión de monitoristas (alta/baja)
+- [ ] Exportar .xlsx con las 13 columnas exactas
+
+**Backend / sistema**
+- [ ] `POST /trips`, `POST /trips/:id/locations` (GZIP), cierres, destinos, auth, export
+- [ ] Cierre automático por geocerca + orden de detener GPS
+- [ ] Validación en todos los endpoints + exception filter
+- [ ] Secretos fuera del repo; `.env.example` presente
+
+**Entrega**
+- [ ] Deploy demo accesible (o túnel listo)
+- [ ] Script simulador de ruta para la demo
+- [ ] README de arranque (local) y de despliegue
+- [ ] ADRs y specs actualizadas
+- [ ] `main` limpia y verde para auditoría
+- [ ] Demo ensayada sin fallos
+- [ ] Backlog post-MVP escrito
+
+---
+
+## 20. Mejoras sugeridas al prompt / documentación / enfoque
+
+1. **El prompt sobredimensiona Docker/CI/CD/despliegue cloud** que el proyecto marca explícitamente como NO requeridos. Se degradaron a mínimo demostrable. *Sugerencia:* en futuros prompts, dejar que el documento del proyecto gobierne el alcance de infra.
+2. **El prompt no menciona que es una competencia ni que el código será auditado.** Eso cambia prioridades (calidad de repo, demo robusta). Está incorporado en el plan; conviene tenerlo explícito en cualquier brief.
+3. **El doc de batería mezcla iOS (CoreMotion/CoreLocation)** aunque el alcance es solo Android → ruido. Confirmar exclusión de iOS (H11).
+4. **"Tiempo real" vs "refresco 15–20 min"** es una contradicción de expectativas en el propio doc (§4.1 dice "tiempo real" pero también "cada 15–20 min"). Alinear el lenguaje con el negocio (H7).
+5. **Falta el insumo más crítico para una demo creíble:** los destinos reales con coordenadas y radios (H2). Sin eso la geocerca se prueba con datos inventados. Pedirlo el Día 1–3.
+6. **Estrategia probada > recrear:** el doc describe a mano lo que ya hacen librerías de background-geolocation; vale la pena evaluar usarlas (D1) en lugar de reimplementar la administración de energía desde cero, dado que eres un dev solo en 8 días.
+7. **Demostrabilidad del GPS:** definir desde ya cómo se mostrará el movimiento el día de la presentación (simulador de ruta), porque manejar un camión real en vivo no es viable (H3).
+
+---
+
+## 21. Backlog de bloques (ejecutable)
+
+> La unidad atómica de trabajo es el **bloque** (`fase.bloque`). Cada uno: alcance in/out, checkboxes, "Hecho cuando:" medible. Etiqueta de módulo: `BE` backend · `WEB` web · `AND` android · `INF` infra · `DOC` docs/specs · `PLAN` este plan. Se ejecutan con `/bloque <id>`. Orden = dependencia + riesgo alto temprano (NO por módulo).
+
+### Fase 0 — Diseño (puro diseño, sin código) · 17–19 jun
+
+Cierra los huecos que dependen de nosotros (distintos de H1–H11, que dependen de terceros). Al terminar, cada bloque de código tendrá contrato.
+
+#### Bloque 0.1 — Product Spec + AI Dev Spec `[DOC]` · deps: —
+**Incluye:** formalizar problema, usuarios, objetivo, alcance/fuera-de-alcance, métricas de éxito, flujos principales (gran parte ya en PLAN §1–5); reglas de uso de IA (PLAN §16).
+**NO incluye:** detalle funcional ni técnico.
+- [ ] `docs/product-spec.md`
+- [ ] `docs/ai-dev-spec.md`
+**Hecho cuando:** un revisor entiende qué se construye y para quién sin leer el doc fuente.
+
+#### Bloque 0.2 — Functional Spec + máquina de estados `[DOC]` · deps: 0.1 · **[x] (pendiente confirmar)**
+**Incluye:** casos de uso, máquina de estados del viaje, reglas de negocio, validaciones campo a campo, errores esperados, criterios de aceptación.
+**NO incluye:** endpoints/contratos (eso es 0.3), esquema de tablas (0.4).
+- [x] `docs/functional-spec.md` con las 9 secciones
+- [x] Máquina de estados (diagrama + tabla de transiciones)
+- [x] Validaciones de los 7 campos del formulario (incl. regex placa MX)
+- [x] Supuestos a validar marcados (S-01 a S-07)
+**Hecho cuando:** puedo derivar de aquí cada endpoint y cada tabla sin volver a inventar reglas.
+
+#### Bloque 0.3 — API Spec (OpenAPI) `[DOC]` · deps: 0.2 · **[x] (pendiente confirmar)**
+**Incluye:** endpoints, métodos, request/response, errores, auth, ejemplos JSON.
+- [x] `docs/api-spec.md` (web + móvil, 2 guards, ejemplos JSON, validaciones de ingesta)
+**Hecho cuando:** un front podría mockear la API solo con este doc.
+
+#### Bloque 0.4 — Database Spec `[DOC]` · deps: 0.2 · **[x] (pendiente confirmar)**
+**Incluye:** entidades (Trip, Location, Destination, User), campos, relaciones, índices, datos sensibles, borrado. Mapear a las 13 columnas del reporte.
+- [x] `docs/database-spec.md` (4 entidades, enums, índices, mapeo 13 columnas, borrador `schema.prisma`)
+**Hecho cuando:** un revisor dibuja el diagrama sin preguntarme nada.
+
+#### Bloque 0.5 — ADRs 001–012 `[DOC]` · deps: 0.1
+**Incluye:** redactar cada ADR (contexto, decisión, alternativas, consecuencias +/−, riesgos, estado). Hoy solo están como filas en PLAN §14.
+- [ ] `docs/adr/ADR-001..012.md`
+**Hecho cuando:** cada decisión técnica tiene su porqué escrito y auditable.
+
+#### Bloque 0.6 — UI/UX Spec `[DOC]` · deps: 0.2 · **[x] (pendiente confirmar)**
+**Incluye:** pantallas web + Android, navegación, componentes, estados carga/vacío/error (referencia Figma del doc).
+- [x] `docs/uiux-spec.md` (brief con límites duros + lista "NO diseñar", 5 pantallas móvil + 6 web, estados transversales)
+**Hecho cuando:** sé qué pantallas construir y qué estados maneja cada una.
+
+#### Bloque 0.7 — Decomponer Slices 0–8 en bloques `[PLAN]` · deps: 0.2–0.6 · **[x] (pendiente confirmar)**
+**Incluye:** convertir los vertical slices en Fases 1–N con bloques ejecutables (checkboxes + "Hecho cuando").
+- [x] Fases 1–9 escritas en este §21 (abajo)
+**Hecho cuando:** todo el camino a la demo está en bloques tomables con `/bloque`.
+
+### Insumos de coaching seniors (2026-06-17) — a integrar en las specs
+
+| Acción | Dónde aterriza | Estado |
+| :-- | :-- | :-- |
+| Auditoría `createdBy` / `createdAt` (y `updatedAt`) en entidades | Database Spec (0.4) | Pendiente |
+| Validar timestamps **no futuros** + coords con rango válido + bbox MX de cordura. **NO** rechazar coords "fuera de geocerca" (es la ruta) | Functional Spec (0.2) + API Spec (0.3) | Pendiente |
+| `tripToken` + identidad de dispositivo para ingesta sin login | ADR-007 + API Spec (0.3) | Diseño definido, falta ADR |
+| Rechazar coords de viaje terminado / otro dispositivo (lo cubre `tripToken` + invariante S-05) | ADR-007 | Pendiente |
+| `lastLocationAt` para rate-limit de ingesta + rate-limit básico | Database Spec (0.4) + API Spec (0.3) | Pendiente |
+| Una sola API, rutas `/api/web/*` (Guard JWT) y `/api/mobile/*` (Guard tripToken) — NestJS Guards, no AOP | Technical Spec + ADR-007 | Pendiente |
+| `syncState` (PENDING/SENT/FAILED) en cola local Android | UI/UX + diseño Android | Pendiente |
+| Validar imágenes (tamaño/tipo) al subir | Functional Spec (0.2) | Pendiente |
+| Almacenamiento nube (S3/R2/B2, pre-signed URLs) | ADR-008 / post-MVP | Diferido |
+
+### Fases 1–N — Implementación (decompuesto en Bloque 0.7, 2026-06-18)
+> Orden = dependencia + riesgo alto temprano. Etiquetas: `BE WEB AND INF SCRIPT DOC`. Cada bloque se toma con `/bloque <id>`. Lo que NO depende del diseño visual (backend, bala trazadora) puede avanzar mientras Rogelio diseña el UX/UI.
+
+#### Fase 1 — Cimientos + bala trazadora *(ataca el riesgo #1 temprano; independiente del diseño)*
+- **1.1 `[INF]`** Scaffolding monorepo (`/backend /web /android /scripts`), `git init`, `.gitignore`, `.env.example`, `docker-compose.yml` (Postgres). **Hecho cuando:** `docker compose up` levanta Postgres y el repo tiene estructura ADR-001.
+- **1.2 `[BE]`** NestJS base + Prisma + `schema.prisma` (de `database-spec.md` §10) + 1ª migración + índice único parcial RN-11. **Hecho cuando:** la API arranca y migra contra Postgres; tablas creadas.
+- **1.3 `[WEB]`** React+Vite+TS base + Leaflet con mapa vacío. **Hecho cuando:** `npm run dev` muestra un mapa OSM.
+- **1.4 `[AND]`** Proyecto Kotlin vacío que compila y arranca en emulador. **Hecho cuando:** la app abre una pantalla en el emulador.
+- **1.5 `[AND+BE+WEB]` Slice 0 — Bala trazadora:** Android manda 1 coord hardcodeada → endpoint desechable → DB → punto en mapa web. **Hecho cuando:** veo el punto en el mapa desde un envío real del emulador.
+
+#### Fase 2 — Inicio de viaje + foto (Slices 1 y 8)
+- **2.1 `[BE]`** `GET /api/mobile/destinations` + `POST /api/mobile/trips` (DTO, validación 7 campos, emite tripToken hasheado, deviceId, RN-11). **Hecho cuando:** curl crea viaje "En ruta" y devuelve tripToken.
+- **2.2 `[BE]`** Subida de foto multipart (validar tipo/tamaño, guardar en disco). **Hecho cuando:** la foto se persiste y se sirve.
+- **2.3 `[AND]`** Pantalla M2 (7 campos + validaciones + foto + dropdown destinos) → `POST /trips`. **Hecho cuando:** un viaje creado en el emulador aparece en la BD.
+- **2.4 `[WEB]`** Lista/tarjetas de viajes activos. **Hecho cuando:** el viaje creado se ve "En ruta" en web con su foto.
+
+#### Fase 3 — Rastreo por lotes + energía (Slice 2) *(núcleo, riesgo)*
+- **3.1 `[AND]`** FusedLocation captura pasiva + Room cola local + `syncState`. **Hecho cuando:** se acumulan puntos locales.
+- **3.2 `[AND]`** Distance filter + ActivityRecognition (hibernación) + Foreground Service + notificación. **Hecho cuando:** el servicio sobrevive en 2º plano en el emulador.
+- **3.3 `[AND]`** WorkManager envío por lotes GZIP cada 15–20 min con reintentos. **Hecho cuando:** un lote GZIP llega al backend.
+- **3.4 `[BE]`** `POST /api/mobile/trips/:id/locations` (Guard tripToken, GZIP, validaciones de ingesta §5, idempotencia `batchId`, `lastLocationAt`). **Hecho cuando:** el lote persiste; lote duplicado se ignora.
+- **3.5 `[WEB]`** Mapa de tránsito W1 con polling 15–20 min. **Hecho cuando:** el camión se mueve en el mapa (batería = objetivo de diseño, NO verificable sin teléfono — ADR-004/H6).
+
+#### Fase 4 — Cierres automático y manuales (Slices 3 y 4)
+- **4.1 `[BE]`** Haversine en service de ingesta → cierre automático + `stopTracking` en respuesta. **Hecho cuando:** punto dentro del radio cierra el viaje.
+- **4.2 `[BE]`** `POST /api/mobile/trips/:id/close` (operador, observaciones obligatorias).
+- **4.3 `[BE]`** `POST /api/web/trips/:id/close` (admin, observaciones, `closedById`).
+- **4.4 `[AND]`** M4 finalizar + M5 concluido + recibir `stopTracking` y detener GPS. **Hecho cuando:** la app deja de rastrear al cerrarse el viaje.
+- **4.5 `[WEB]`** W3 forzar cierre con observaciones.
+
+#### Fase 5 — Destinos/geocercas (Slice 5)
+- **5.1 `[BE]`** CRUD `/api/web/destinations`.
+- **5.2 `[WEB]`** W4 CRUD con mapa (centro+radio visualizado). **Hecho cuando:** un destino nuevo aparece en el dropdown de la app.
+
+#### Fase 6 — Auth web + usuarios (Slice 7)
+- **6.1 `[BE]`** Módulo auth JWT + Guard JWT + `POST /auth/login`.
+- **6.2 `[BE]`** CRUD usuarios + Guard de rol ADMIN.
+- **6.3 `[WEB]`** W0 login + rutas protegidas + W5 gestión usuarios. **Hecho cuando:** sin token no se entra; admin da de alta un monitorista que luego entra.
+
+#### Fase 7 — Reportes Excel (Slice 6)
+- **7.1 `[BE]`** `GET /api/web/reports/export` .xlsx con las **13 columnas exactas** (exceljs).
+- **7.2 `[WEB]`** W2 botón exportar + filtros. **Hecho cuando:** el .xlsx tiene exactamente 13 columnas en orden.
+
+#### Fase 8 — Endurecimiento + seguridad + pruebas
+- **8.1 `[BE]`** Exception filter global, ValidationPipe global (whitelist), helmet, CORS, rate-limit (throttler), Guard `X-App-Key` bootstrap, límites body/GZIP. **Hecho cuando:** capas de ADR-007 §"Defensa en capas" implementadas.
+- **8.2 `[BE]`** Jest unit (geocerca, máquina de estados, validaciones) + e2e Supertest (trips, ingesta, cierre). **Hecho cuando:** gates verdes.
+
+#### Fase 9 — Deploy + demo
+- **9.1 `[INF]`** Túnel cloudflared (dev) + deploy Railway/Render + Postgres managed (demo).
+- **9.2 `[SCRIPT]`** Simulador de ruta (reproduce GPX / mock locations) para la demo (H3).
+- **9.3 `[DOC]`** README de arranque + ensayo de demo. **Hecho cuando:** la demo e2e corre 2 veces seguidas sin fallar.
+
+---
+
+### Bitácora
+- **2026-06-17:** Plan maestro creado a partir de `2026 Exiros alcance MVP On-Route Tracker.md` y `IWA-Exiros - Estrategia Ágil`. Pendientes externos: D1, D2 y respuestas a las 5 preguntas críticas (Julio/seniors).
+- **2026-06-17:** Creado `AGENTS.md` (contexto vivo entre sesiones). Adoptado modelo de 3 capas (AGENTS + PLAN + backlog de bloques). Agregado §21 con Fase 0 de diseño. Decisión: módulo = etiqueta, fase = orden de ejecución por dependencia. Arranca Bloque 0.2 (Functional Spec).
+- **2026-06-17:** Functional Spec validada con Rogelio. Resueltos S-01..S-07 (S-03 = foto obligatoria bloqueante, cámara o galería). Máquina de estados de 2 estados confirmada. **Backlog v2.0:** estado `En incidencia` (resuelve S-06).
+- **2026-06-17:** Rogelio señala que el PLAN trata decisiones como cerradas sin pros/cons. Corregido: ADRs marcadas "🔲 Sin trabajar", se debaten en 0.5. **ADR-011 (uso de IA) eliminada**: es metodología interna, no entregable del proyecto. §15/§17 marcados como borrador pre-Fase-0 (se reconcilian en 0.7). Aclarada relación tracer bullet ↔ API Spec.
+- **2026-06-17:** Trabajadas y **Aceptadas** ADR-001 (monorepo split-ready), ADR-002 (monolito modular + NestJS), ADR-003 (React+Vite+Leaflet). Criterio del dev: mejor opción técnica > confort; curva no es factor. Escritas en `docs/adr/`. Pendientes en 0.5: ADR-004 Android (D1), 005 DB, 006 ORM, 007 auth, 008 Docker, 009 deploy (D2), 010 pruebas, 012 geocerca.
+- **2026-06-17:** ADR-005 **Postgres** Aceptada (criterio Rogelio: independiente, escala, rápido; duda cubierta por reversibilidad vía Prisma). Creado `infra/eval/docker-compose.yml` (eval PG vs MySQL, desechable). Analizado coaching seniors: ADR-012 **haversine** (spatial/PostGIS = overkill, upgrade path si hay polígonos/miles). Definido concepto **tripToken** (bearer por viaje+dispositivo → resuelve H5 y rechazo de coords de viajes terminados/otro device). Capturados insumos de coaching en §21. **Pushback:** no validar coords "dentro de geocerca" (rompería el rastreo).
+- **2026-06-17:** **ADR-006 Prisma** Aceptada (independiente del motor). **H10 resuelto:** escala pequeña (~200 usuarios, bajo volumen, el usuario nunca toca la BD) → el argumento "Postgres escala mejor" NO aplica; Postgres se mantiene por DX/estrictez/hosting gratis, no por escala.
+- **2026-06-17 (cierre de sesión):** **Postgres CONFIRMADO** por Rogelio → ADR-005 firme; bloque de datos cerrado. **`AGENTS.md` renombrado a `CONTEXT-AI.md`** (más claro; referencias actualizadas en PLAN y en el propio archivo). Aclarado a Rogelio: METODOLOGIA se auto-carga vía `@import` del CLAUDE.md global; PLAN/CONTEXT-AI se leen manualmente (no hay memoria persistente). **Próxima sesión:** trabajar **ADR-004 (Stack Android, riesgo #1)**, luego ADR-007/008/009/010. Fase 0 docs pendientes: 0.1, 0.3 (API), 0.4 (DB), 0.5 (resto ADRs), 0.6 (UI/UX), 0.7 (decomponer slices).
+- **2026-06-18:** **ADR-004 Aceptada — Kotlin nativo** (FusedLocation + ActivityRecognition + Foreground Service + Room + WorkManager) con **Plan B** documentado (plugin cross-platform en debug si la bala trazadora falla en 2º plano). Flutter/RN descartado como principal por defendibilidad en auditoría (núcleo no sería código propio) + licencia en release; Java nativo descartado (Kotlin > Java); plugins gratis descartados (poco fiables en 2º plano = empeoran riesgo #1). **H6 PARCIAL:** Rogelio **no tiene teléfono físico** → demo en **emulador** (UI/permisos/ruta GPS simulada OK; cierre por geocerca demostrable). **Métrica "<10% batería/jornada" y supervivencia OEM = NO verificables hasta dispositivo real** → deuda de validación honesta en ADR-004 (no se reportará "cumplido"). **Próxima sesión:** ADR-007 (auth: JWT web + tripToken móvil, diseño ya definido), luego 008/009/010, y docs Fase 0 (0.1, 0.3, 0.4, 0.6, 0.7).
+- **2026-06-18:** **Todas las ADRs cerradas** (007 auth JWT+tripToken · 008 Docker solo PG local · 009 deploy túnel+Railway *pend. confirmar Julio* · 010 Jest unit + Supertest e2e, manuales en emulador). **Bloque 0.5 COMPLETO.** Rogelio expresó urgencia (2 días en diseño, 0 código) → decisión: **no sobre-deliberar specs**; comprimir Fase 0 restante a lo que alimenta código directo. **Plan acordado:** las specs de alto valor son **0.4 (DB → schema Prisma)** y **0.3 (API → contratos)**; 0.1 (Product) ya está casi todo en PLAN §1–5 y 0.6 (UI/UX) se hace ligero. Ruta a código: cerrar 0.4 + 0.3 compactas → scaffolding monorepo + bala trazadora (Slice 0). **Pendientes externos vivos:** D2 (Julio), H2 destinos reales (Julio, tope D3), H11 iOS (Julio).
+- **2026-06-18:** **Seguridad del endpoint público reforzada** (preocupación de Rogelio: app sin login → ingesta pública). Aclarado: **AOP no existe en NestJS** → la capa transversal = Guards+Interceptors+Pipes+Filters. **ADR-007 ampliada** con "Defensa en capas" + capas MVP #8–12 (tripToken hasheado, idempotencia por batchId, chequeo de teletransporte, helmet/CORS, rate-limit de borde Cloudflare) y upgrade path post-MVP (HMAC, Play Integrity, WAF). Regla de oro escrita: **tratar todo dato entrante como hostil**. Creado **`docs/prompt-aprende-proyecto.md`**: prompt reutilizable para que en sesiones nuevas el agente actúe como mentor y exponga el proyecto (Rogelio quiere aprender programación/ciberseguridad, no solo delegar).
+- **2026-06-18:** **Bloque 0.4 (Database Spec) HECHO** → `docs/database-spec.md`. 4 entidades (User, Destination, Trip, Location), 3 enums, mapeo explícito a las **13 columnas** (Duración Total NO se almacena, se deriva), borrador `schema.prisma` listo para código. Decisiones de modelo: `providerNumber`/`folio` = **String** (identificadores con posibles ceros a la izquierda, no cantidades); coords = **Float**; soft-delete en User/Destination, Trip nunca se borra; auditoría `createdBy/createdAt/updatedAt`. Seguridad en BD: `passwordHash` + `tripTokenHash` hasheados, **no se guarda identidad del chofer** (solo `deviceId` anónimo). **RN-11 reforzada con índice único parcial** (`deviceId WHERE status=EN_RUTA`, vía SQL en migración). **Siguiente:** Bloque 0.3 (API Spec).
+- **2026-06-18:** **H2 RESUELTO** por Rogelio: el catálogo de destinos lo crea el Admin desde el CRUD web (datos de **runtime, no build-time**) → deja de bloquear; datos reales solo para demo creíble. Nuevas reglas: **RN-13** interacción mínima en app (solo consume, no crea), **RN-14** catálogo vacío → app bloquea inicio con estado vacío. H2 marcado ✅ en §3.
+- **2026-06-18:** **Bloque 0.3 (API Spec) HECHO** → `docs/api-spec.md`. Endpoints web (`/api/web/*` JWT) y móvil (`/api/mobile/*`), formato de error único, códigos, ejemplos JSON de los flujos críticos (login, crear viaje multipart+tripToken, ingesta GZIP con idempotencia y `stopTracking`, cierres, export 13 columnas), validaciones de ingesta. **Descubrimiento de diseño:** "arranque de confianza" — leer destinos y crear viaje ocurren **antes** del tripToken → endpoints bootstrap protegidos con `X-App-Key` (estática, debilidad honesta documentada) + rate-limit; el tripToken protege la ingesta (lo que importa). **Fase 0 casi cerrada:** faltan 0.1 (Product, casi todo en PLAN §1–5 → ligero), 0.6 (UI/UX ligero) y 0.7 (decomponer slices). **Próximo paso de peso: scaffolding del monorepo + bala trazadora (Slice 0).**
+- **2026-06-18:** Rogelio revisó la API Spec y detectó 2 cosas: (1) los permisos de **lectura del admin** estaban implícitos → añadida **matriz de permisos §2.2** (ADMIN superset de MONITOR); (2) confirmó/entendió la **separación web vs móvil** (ya existía como `/api/web` vs `/api/mobile`) → formalizada en **§2.1** con la **regla anti-duplicación** (mismo Service, distinto Guard/DTO; NO duplicar lógica de negocio). Buena lectura crítica de la spec por parte del dev.
+- **2026-06-18:** **Confirmado con doc fuente:** el cierre por operador es **solo texto** (Observaciones, líneas 119 y 195: "campo de texto") → **NO foto en el cierre**; la única foto es la de carga al inicio. Sin cambios al diseño (ya estaba correcto). Foto en cierre = posible v2.0, no MVP.
+- **2026-06-18:** **Bloque 0.6 (UI/UX Spec) HECHO** → `docs/uiux-spec.md`. Escrito como **brief con límites duros** para alimentar a Claude Design (Rogelio va a diseñar el UX/UI): incluye lista explícita **"🚫 NO diseñar"** (anti-scope-creep), 5 pantallas móvil (M1–M5) + 6 web (W0–W5), estados transversales (carga/vacío/error/sin red), restricciones de la app (sin login, botones grandes, interacción mínima). **Fase 0: solo falta 0.1 (Product, ligero/redundante con PLAN) y 0.7 (decomponer slices, para implementación).** Para diseñar, Rogelio debe pasar a la IA: `uiux-spec.md` + `functional-spec.md`.
+- **2026-06-18:** Aclarado que **web y móvil son dos plataformas distintas** → diseñar en sesiones separadas (Material Design móvil vs UI escritorio web); comparten marca/dominio/API, NO componentes. Anotado en `uiux-spec.md` §0.
+- **2026-06-18:** **Bloque 0.7 HECHO → FASE 0 COMPLETA.** Slices 0–8 decompuestos en **Fases 1–9** con bloques `fase.bloque`, checkboxes y "Hecho cuando" (ver §21). Rogelio arrancó el **diseño UX/UI en paralelo**. **Estrategia acordada:** del lado del código avanzar lo **independiente del diseño** = Fase 1 (scaffolding + bala trazadora) y backend. **Siguiente acción:** Bloque 1.1 (scaffolding monorepo + git init + docker-compose Postgres). 0.1 Product Spec queda como relleno opcional de baja prioridad (redundante con PLAN §1–5).
+- **2026-06-18 (CIERRE DE SESIÓN):** Verificado entorno: **Node 22.21, npm 10.9, Docker 27.4 + Compose v2.31, Git 2.50, Java 21** (Nest vía npx). Repo **aún sin `git init`** y sin carpetas `/backend /web /android /scripts` (solo `/docs` e `/infra/eval`). **Pendiente de decisión de Rogelio para arrancar Bloque 1.1 (scaffolding):** 3 opciones planteadas → (A) todo 1.1 con docker-compose Postgres [recomendado], (B) estructura sin Docker (Postgres local propio), (C) saltar directo a backend NestJS+Prisma. **RETOMAR MAÑANA AQUÍ:** preguntar a Rogelio cuál opción y ejecutar Bloque 1.1. Rogelio sigue diseñando UX/UI en paralelo (Claude Design). Nada del working tree es código aún → arrancar limpio.
