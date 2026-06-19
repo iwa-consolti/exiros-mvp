@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  .ms { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  input::placeholder { color:#9aa2ad; }
+</style>
+</helmet>
+
+<div style="font-family:'Roboto',sans-serif;min-height:100vh;width:100vw;background:#e3e7ee;display:flex;align-items:center;justify-content:center;padding:32px 0;color:#111827">
+  <div style="width:392px;background:#1c1f24;border-radius:42px;padding:9px;box-shadow:0 30px 70px -22px rgba(20,30,55,.55)">
+    <div style="background:#F8FAFC;border-radius:34px;overflow:hidden;height:812px;display:flex;flex-direction:column;position:relative">
+
+      <!-- ===== PERMISOS ===== -->
+      <sc-if value="{{ isPermisos }}" hint-placeholder-val="{{ true }}">
+        <div style="height:100%;display:flex;flex-direction:column">
+          <div style="height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:13px;font-weight:500;color:#111827;flex:none"><span>9:41</span><span style="display:flex;gap:7px;align-items:center"><span class="ms" style="font-size:15px">signal_cellular_alt</span><span class="ms" style="font-size:15px">wifi</span><span class="ms" style="font-size:16px">battery_full</span></span></div>
+          <div style="flex:1;padding:32px 26px 28px;display:flex;flex-direction:column;overflow:auto">
+            <div style="width:64px;height:64px;border-radius:18px;background:#eaf0f9;display:flex;align-items:center;justify-content:center;margin-bottom:24px;flex:none"><span class="ms" style="font-size:34px;color:#0D479C">my_location</span></div>
+            <h3 style="font-size:23px;font-weight:700;margin:0 0 10px;line-height:1.25">Permisos para rastrear el viaje</h3>
+            <p style="font-size:15px;color:#5b6472;line-height:1.5;margin:0 0 26px">Necesitamos estos permisos para registrar la ruta. Cuidamos tu batería: solo rastreamos lo necesario mientras el viaje está activo.</p>
+            <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-top:1px solid #e7ebf1"><span class="ms" style="font-size:24px;color:#0D479C;margin-top:1px">location_on</span><div><div style="font-size:15px;font-weight:500">Ubicación precisa</div><div style="font-size:13px;color:#7a828f;line-height:1.4">Para ubicar el camión en la ruta.</div></div></div>
+            <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-top:1px solid #e7ebf1"><span class="ms" style="font-size:24px;color:#0D479C;margin-top:1px">explore</span><div><div style="font-size:15px;font-weight:500">Ubicación en segundo plano</div><div style="font-size:13px;color:#7a828f;line-height:1.4">Seguir rastreando con la pantalla apagada.</div></div></div>
+            <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-top:1px solid #e7ebf1"><span class="ms" style="font-size:24px;color:#0D479C;margin-top:1px">notifications</span><div><div style="font-size:15px;font-weight:500">Notificaciones</div><div style="font-size:13px;color:#7a828f;line-height:1.4">Avisos del estado del viaje (Android 13+).</div></div></div>
+            <div style="display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-top:1px solid #e7ebf1;border-bottom:1px solid #e7ebf1"><span class="ms" style="font-size:24px;color:#0D479C;margin-top:1px">directions_walk</span><div><div style="font-size:15px;font-weight:500">Actividad física</div><div style="font-size:13px;color:#7a828f;line-height:1.4">Detectar si el vehículo está en movimiento.</div></div></div>
+            <div style="flex:1;min-height:18px"></div>
+            <button onClick="{{ toForm }}" style="width:100%;height:56px;background:#0D479C;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:500;font-family:Roboto;cursor:pointer;margin-top:26px;box-shadow:0 6px 16px -6px rgba(13,71,156,.6)">Permitir y continuar</button>
+            <button onClick="{{ toForm }}" style="width:100%;height:48px;background:none;color:#5b6472;border:none;font-size:15px;font-weight:500;font-family:Roboto;cursor:pointer;margin-top:6px">Ahora no</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== FORMULARIO ===== -->
+      <sc-if value="{{ isForm }}" hint-placeholder-val="{{ true }}">
+        <div style="height:100%;display:flex;flex-direction:column">
+          <div style="height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:13px;font-weight:500;color:#111827;background:#fff;flex:none"><span>9:41</span><span style="display:flex;gap:7px;align-items:center"><span class="ms" style="font-size:15px">signal_cellular_alt</span><span class="ms" style="font-size:15px">wifi</span><span class="ms" style="font-size:16px">battery_full</span></span></div>
+          <div style="background:#fff;padding:16px 26px 18px;border-bottom:1px solid #eef1f5;flex:none"><div style="font-size:20px;font-weight:700;color:#464747">e<span style="color:#0D479C">x</span>iros</div><div style="font-size:14px;color:#7a828f;margin-top:2px">Iniciar viaje</div></div>
+          <div style="flex:1;padding:22px 26px 28px;display:flex;flex-direction:column;overflow:auto">
+            <div style="margin-bottom:16px"><label style="display:block;font-size:13px;font-weight:500;color:#464747;margin-bottom:6px">Núm. de Proveedor</label><input value="48213" style="width:100%;height:54px;border:1.5px solid #D4D8E0;border-radius:10px;padding:0 14px;font-size:16px;color:#111827;font-family:Roboto;background:#fff"></div>
+            <div style="margin-bottom:16px"><label style="display:block;font-size:13px;font-weight:500;color:#464747;margin-bottom:6px">Nombre de Proveedor</label><input value="Transporte del Norte SA de CV" style="width:100%;height:54px;border:1.5px solid #D4D8E0;border-radius:10px;padding:0 14px;font-size:16px;color:#111827;font-family:Roboto;background:#fff"></div>
+            <div style="margin-bottom:16px"><label style="display:block;font-size:13px;font-weight:500;color:#464747;margin-bottom:6px">Folio / Remito</label><input value="100294" style="width:100%;height:54px;border:1.5px solid #D4D8E0;border-radius:10px;padding:0 14px;font-size:16px;color:#111827;font-family:Roboto;background:#fff"></div>
+            <div style="display:flex;gap:12px;margin-bottom:16px">
+              <div style="flex:1"><label style="display:block;font-size:13px;font-weight:500;color:#464747;margin-bottom:6px">Placa Delantera</label><input value="ABC-12-34" style="width:100%;height:54px;border:1.5px solid #D4D8E0;border-radius:10px;padding:0 14px;font-size:16px;color:#111827;font-family:Roboto;background:#fff"></div>
+              <div style="flex:1"><label style="display:block;font-size:13px;font-weight:500;color:#464747;margin-bottom:6px">Placa Trasera <span style="color:#9aa2ad;font-weight:400">(opcional)</span></label><input placeholder="—" style="width:100%;height:54px;border:1.5px solid #D4D8E0;border-radius:10px;padding:0 14px;font-size:16px;color:#111827;font-family:Roboto;background:#fff"></div>
+            </div>
+            <div style="margin-bottom:16px"><label style="display:block;font-size:13px;font-weight:500;color:#464747;margin-bottom:6px">Foto de la Carga</label>
+              <div style="border:1.5px solid #16A34A;background:#f0faf3;border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px">
+                <div style="width:54px;height:54px;border-radius:8px;background:repeating-linear-gradient(45deg,#dfe6ee,#dfe6ee 7px,#e8edf3 7px,#e8edf3 14px);display:flex;align-items:center;justify-content:center"><span class="ms" style="font-size:24px;color:#8a94a3">photo</span></div>
+                <div style="flex:1"><div style="font-size:14px;font-weight:500;color:#15803d;display:flex;align-items:center;gap:5px"><span class="ms" style="font-size:18px">check_circle</span>Foto agregada</div><div style="font-size:12px;color:#7a828f">carga_48213.jpg</div></div>
+                <span class="ms" style="font-size:22px;color:#7a828f">photo_camera</span>
+              </div>
+            </div>
+            <div style="margin-bottom:22px"><label style="display:block;font-size:13px;font-weight:500;color:#464747;margin-bottom:6px">Destino</label>
+              <select style="width:100%;height:54px;border:1.5px solid #D4D8E0;border-radius:10px;padding:0 12px;font-size:16px;color:#111827;background:#fff;font-family:Roboto"><option>Planta Monterrey</option><option>CD Guadalajara</option><option>Planta Saltillo</option></select>
+            </div>
+            <button onClick="{{ toCurso }}" style="width:100%;height:58px;background:#0D479C;color:#fff;border:none;border-radius:14px;font-size:17px;font-weight:500;font-family:Roboto;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 16px -6px rgba(13,71,156,.6)"><span class="ms" style="font-size:22px">play_arrow</span>Iniciar viaje</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== EN CURSO ===== -->
+      <sc-if value="{{ isCurso }}" hint-placeholder-val="{{ true }}">
+        <div style="height:100%;display:flex;flex-direction:column">
+          <div style="height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:13px;font-weight:500;color:#111827;background:#fff;flex:none"><span>9:41</span><span style="display:flex;gap:7px;align-items:center"><span class="ms" style="font-size:15px">signal_cellular_alt</span><span class="ms" style="font-size:15px">wifi</span><span class="ms" style="font-size:16px">battery_full</span></span></div>
+          <div style="background:#fff;padding:16px 26px 18px;border-bottom:1px solid #eef1f5;flex:none"><div style="font-size:20px;font-weight:700;color:#464747">e<span style="color:#0D479C">x</span>iros</div></div>
+          <div style="flex:1;padding:24px 26px 28px;display:flex;flex-direction:column;overflow:auto">
+            <div style="display:inline-flex;align-self:flex-start;align-items:center;gap:8px;background:#eafaf0;border:1px solid #bce8cd;color:#15803d;font-size:14px;font-weight:600;padding:8px 14px;border-radius:999px;margin-bottom:22px"><span style="width:9px;height:9px;border-radius:50%;background:#16A34A;display:inline-block"></span>En ruta · rastreando</div>
+            <h3 style="font-size:24px;font-weight:700;margin:0 0 4px">Viaje activo</h3>
+            <p style="font-size:14px;color:#7a828f;margin:0 0 24px">Tu ubicación se está registrando automáticamente.</p>
+            <div style="background:#fff;border:1px solid #e7ebf1;border-radius:16px;padding:4px 18px">
+              <div style="display:flex;align-items:center;gap:14px;padding:16px 0;border-bottom:1px solid #eef1f5"><span class="ms" style="font-size:24px;color:#0D479C">place</span><div><div style="font-size:13px;color:#7a828f">Destino</div><div style="font-size:16px;font-weight:600;color:#111827">Planta Monterrey</div></div></div>
+              <div style="display:flex;align-items:center;gap:14px;padding:16px 0;border-bottom:1px solid #eef1f5"><span class="ms" style="font-size:24px;color:#0D479C">schedule</span><div><div style="font-size:13px;color:#7a828f">Hora de inicio</div><div style="font-size:16px;font-weight:600;color:#111827">08:15 a. m. · 22/05/2025</div></div></div>
+              <div style="display:flex;align-items:center;gap:14px;padding:16px 0"><span class="ms" style="font-size:24px;color:#16A34A">sync</span><div><div style="font-size:13px;color:#7a828f">Sincronización</div><div style="font-size:16px;font-weight:600;color:#15803d">Al día · último envío 9:39 a. m.</div></div></div>
+            </div>
+            <div style="background:#f4f7fb;border-radius:12px;padding:13px 16px;margin-top:16px;display:flex;align-items:center;gap:10px"><span class="ms" style="font-size:20px;color:#0D479C">battery_saver</span><span style="font-size:13px;color:#3f4856;line-height:1.4">Modo ahorro: solo enviamos puntos cuando el camión se mueve.</span></div>
+            <div style="flex:1;min-height:18px"></div>
+            <button onClick="{{ openSheet }}" style="width:100%;height:56px;background:#fff;color:#0D479C;border:1.5px solid #0D479C;border-radius:14px;font-size:16px;font-weight:600;font-family:Roboto;cursor:pointer;margin-top:24px;display:flex;align-items:center;justify-content:center;gap:8px"><span class="ms" style="font-size:21px">flag</span>Finalizar viaje</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== CONCLUIDO ===== -->
+      <sc-if value="{{ isConcluido }}" hint-placeholder-val="{{ true }}">
+        <div style="height:100%;display:flex;flex-direction:column">
+          <div style="height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:13px;font-weight:500;color:#111827;background:#fff;flex:none"><span>9:41</span><span style="display:flex;gap:7px;align-items:center"><span class="ms" style="font-size:15px">signal_cellular_alt</span><span class="ms" style="font-size:15px">wifi</span><span class="ms" style="font-size:16px">battery_full</span></span></div>
+          <div style="flex:1;padding:40px 30px 28px;display:flex;flex-direction:column;align-items:center;text-align:center;overflow:auto">
+            <div style="width:96px;height:96px;border-radius:50%;background:#eaf0f9;display:flex;align-items:center;justify-content:center;margin:30px 0 26px;flex:none"><span class="ms" style="font-size:54px;color:#0D479C">task_alt</span></div>
+            <h3 style="font-size:25px;font-weight:700;margin:0 0 10px">Viaje concluido</h3>
+            <p style="font-size:15px;color:#5b6472;line-height:1.5;margin:0 0 24px">Cerraste el viaje manualmente. El rastreo se detuvo.</p>
+            <div style="width:100%;background:#fff;border:1px solid #e7ebf1;border-radius:16px;padding:4px 18px;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:13px;padding:15px 0;border-bottom:1px solid #eef1f5;text-align:left"><span class="ms" style="font-size:22px;color:#0D479C">how_to_reg</span><div><div style="font-size:13px;color:#7a828f">Tipo de cierre</div><div style="font-size:15px;font-weight:600;color:#111827">Manual por operador</div></div></div>
+              <div style="display:flex;align-items:flex-start;gap:13px;padding:15px 0;border-bottom:1px solid #eef1f5;text-align:left"><span class="ms" style="font-size:22px;color:#0D479C">notes</span><div><div style="font-size:13px;color:#7a828f">Observaciones</div><div style="font-size:14px;font-weight:500;color:#111827;line-height:1.4">Entrega completada en andén 4. Recibe almacén sin novedad.</div></div></div>
+              <div style="display:flex;align-items:center;gap:13px;padding:15px 0;text-align:left"><span class="ms" style="font-size:22px;color:#0D479C">timelapse</span><div><div style="font-size:13px;color:#7a828f">Duración</div><div style="font-size:15px;font-weight:600;color:#111827">02:48 h</div></div></div>
+            </div>
+            <div style="flex:1;min-height:18px"></div>
+            <button onClick="{{ toForm }}" style="width:100%;height:58px;background:#0D479C;color:#fff;border:none;border-radius:14px;font-size:17px;font-weight:500;font-family:Roboto;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 16px -6px rgba(13,71,156,.6)"><span class="ms" style="font-size:22px">add</span>Iniciar nuevo viaje</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== FINALIZAR (bottom sheet) ===== -->
+      <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ true }}">
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;z-index:50">
+          <div onClick="{{ closeSheet }}" style="flex:1;background:rgba(17,24,39,.5)"></div>
+          <div style="position:relative;background:#fff;border-radius:26px 26px 34px 34px;padding:24px 26px 30px">
+            <div style="width:42px;height:5px;border-radius:3px;background:#d6dce4;margin:0 auto 20px"></div>
+            <h3 style="font-size:22px;font-weight:700;margin:0 0 6px">Finalizar viaje</h3>
+            <p style="font-size:14px;color:#7a828f;margin:0 0 20px;line-height:1.5">Indica el motivo del cierre. Esta observación es obligatoria.</p>
+            <label style="display:block;font-size:13px;font-weight:500;color:#464747;margin-bottom:6px">Observaciones <span style="color:#DC2626">*</span></label>
+            <textarea onInput="{{ onObs }}" placeholder="Escribe las observaciones del cierre…" style="width:100%;border:1.5px solid #0D479C;border-radius:12px;padding:14px;font-size:15px;color:#111827;line-height:1.5;min-height:110px;background:#fff;font-family:Roboto;resize:none;outline:none"></textarea>
+            <button onClick="{{ confirmar }}" disabled="{{ obsEmpty }}" style="{{ confirmStyle }}"><span class="ms" style="font-size:21px">check</span>Confirmar cierre</button>
+            <button onClick="{{ closeSheet }}" style="width:100%;height:50px;background:none;color:#5b6472;border:none;font-size:15px;font-weight:600;font-family:Roboto;cursor:pointer;margin-top:6px">Cancelar</button>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { screen: 'permisos', sheetOpen: false, obs: '' };
+
+  renderVals() {
+    const s = this.state;
+    const empty = s.obs.trim().length === 0;
+    const btn = 'width:100%;height:56px;border:none;border-radius:14px;font-size:16px;font-weight:600;font-family:Roboto;margin-top:16px;display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;';
+    return {
+      isPermisos: s.screen === 'permisos',
+      isForm: s.screen === 'form',
+      isCurso: s.screen === 'curso',
+      isConcluido: s.screen === 'concluido',
+      sheetOpen: s.sheetOpen,
+      obsEmpty: empty,
+      confirmStyle: btn + (empty ? 'background:#cdd3dc;cursor:not-allowed;' : 'background:#DC2626;cursor:pointer;'),
+      toForm: () => this.setState({ screen: 'form', sheetOpen: false, obs: '' }),
+      toCurso: () => this.setState({ screen: 'curso' }),
+      openSheet: () => this.setState({ sheetOpen: true }),
+      closeSheet: () => this.setState({ sheetOpen: false }),
+      onObs: (e) => this.setState({ obs: e.target.value }),
+      confirmar: () => { if (this.state.obs.trim().length > 0) this.setState({ screen: 'concluido', sheetOpen: false }); },
+    };
+  }
+}
+</script>
+</body>
+</html>
