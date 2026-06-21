@@ -100,6 +100,13 @@ Solución **independiente** de rastreo en ruta de camiones de chatarra (patio ve
 
 > **Todas las ADRs están cerradas.** Lo que sigue NO es diseño de decisiones, es **specs que alimentan código**: 0.4 (DB→Prisma), 0.3 (API→contratos), luego scaffolding + bala trazadora.
 
+## Conservación de tokens/sesión (leer si el gasto preocupa)
+> Diagnóstico 2026-06-21: el gasto por turno lo domina el **costo fijo del system prompt** (cache-read/write de 150k+ tokens), NO el trabajo de código. Palancas, de mayor a menor:
+- **Desactivar servidores MCP que no se usan** (Canva ~55 tools, Google Drive, Playwright hasta que exista `/web`). Es el ahorro grande: inflan el prompt cada turno aunque estén "diferidos".
+- **Cerrar sesión / `/clear` = mejor reset de caché.** Al volver: sesión nueva + leer SOLO este `CONTEXT-AI.md` (checkpoint) en vez de re-explorar el repo.
+- **Commit por bloque** = el seguro real contra perder trabajo (ya es el protocolo).
+- No re-leer archivos enteros: usar `grep` + lectura por rangos. `token-check.sh` mide la ventana de contexto; `/usage` mide la cuota dura (5h/semana) — son cosas distintas.
+
 ## Notas acumuladas (descubrimientos no-obvios; una línea c/u)
 - 2026-06-17: El "AI" del doc de batería = Fused Location nativo, **no IA propia** en el producto. No confundir alcance.
 - 2026-06-17: El doc menciona iOS (CoreMotion/CoreLocation) pero el alcance es **solo Android** → ruido a ignorar.

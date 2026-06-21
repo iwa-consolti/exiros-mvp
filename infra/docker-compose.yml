@@ -1,0 +1,24 @@
+# Infra local mínima (ADR-008: Docker solo para Postgres en dev).
+# Arranque:  docker compose -f infra/docker-compose.yml up -d
+# Variables: lee infra/.env si existe; si no, usa los defaults de abajo.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: exiros-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-exiros}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-exiros_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-exiros}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - exiros_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-exiros} -d ${POSTGRES_DB:-exiros}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  exiros_pgdata:
