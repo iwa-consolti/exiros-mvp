@@ -8,7 +8,9 @@ import type { Trip } from './api';
  * los iconos PNG de Leaflet con bundlers (Vite).
  */
 export default function TripsMap({ trips }: { trips: Trip[] }) {
-  const withLocation = trips.filter((t) => t.lastLocation !== null);
+  // Mapa de tránsito = sólo camiones EN_RUTA (un viaje concluido no está "en tránsito").
+  const active = trips.filter((t) => t.status === 'EN_RUTA');
+  const withLocation = active.filter((t) => t.lastLocation !== null);
   // Centro: último punto disponible, o Monterrey por defecto.
   const center: [number, number] = withLocation[0]?.lastLocation
     ? [withLocation[0].lastLocation.lat, withLocation[0].lastLocation.lng]
@@ -20,7 +22,7 @@ export default function TripsMap({ trips }: { trips: Trip[] }) {
         attribution='&copy; OpenStreetMap'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {trips.map((t) => {
+      {active.map((t) => {
         const items = [];
         // Geocerca del destino (círculo del radio asignado).
         if (t.destination) {

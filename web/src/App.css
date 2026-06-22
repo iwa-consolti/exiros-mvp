@@ -9,12 +9,43 @@
   padding: 1rem 1.5rem;
   background: #1f2a37;
   color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .portal-header h1 {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
+}
+
+.portal-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.portal-updated {
+  font-size: 0.8rem;
+  color: #c3ccd6;
+}
+
+.portal-refresh {
+  background: #0d479c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.portal-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .portal-main {
