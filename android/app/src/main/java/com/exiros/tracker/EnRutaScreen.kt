@@ -21,7 +21,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,12 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.exiros.tracker.data.ActiveTripEntity
-import com.exiros.tracker.data.LocationCapture
 import com.exiros.tracker.data.TripRepository
 import com.exiros.tracker.ui.BorderGray
 import com.exiros.tracker.ui.ExirosBlue
@@ -66,25 +63,14 @@ fun EnRutaScreen(
     hasLocationPermission: Boolean,
     onRequestPermission: () -> Unit,
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     val pointCount by repo.locationCount(trip.tripId).collectAsState(initial = 0)
     val lastPoint by repo.lastLocation(trip.tripId).collectAsState(initial = null)
     var note by remember { mutableStateOf<String?>(null) }
 
-    // Captura ligada al ciclo de vida de la pantalla + al permiso. onDispose retira los updates.
-    DisposableEffect(hasLocationPermission, trip.tripId) {
-        val capture = LocationCapture(context)
-        if (hasLocationPermission) {
-            capture.start { fix ->
-                scope.launch {
-                    repo.recordPoint(trip.tripId, fix.lat, fix.lng, fix.accuracyMeters, fix.recordedAt)
-                }
-            }
-        }
-        onDispose { capture.stop() }
-    }
+    // La captura ya no vive aquí: la hace TrackingService (3.2), que sobrevive en 2º plano.
+    // Esta pantalla solo observa Room.
 
     Column(
         modifier = Modifier
@@ -158,6 +144,14 @@ fun EnRutaScreen(
                     Text("Esperando el primer fix de ubicación…", color = TextSecondary, fontSize = 13.sp)
                 }
             }
+        }
+
+        if (hasLocationPermission) {
+            Text(
+                "El rastreo sigue activo aunque cierres la app o apagues la pantalla.",
+                color = TextSecondary,
+                fontSize = 12.sp,
+            )
         }
 
         // Afordancias de DEBUG: drenar manual (sustituto temporal de 3.3) y reset local de prueba.

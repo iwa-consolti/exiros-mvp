@@ -3,6 +3,7 @@ package com.exiros.tracker
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -70,6 +71,7 @@ import com.exiros.tracker.data.Destination
 import com.exiros.tracker.data.DeviceId
 import com.exiros.tracker.data.TripRepository
 import com.exiros.tracker.data.TripResult
+import com.exiros.tracker.service.TrackingService
 import com.exiros.tracker.ui.BorderGray
 import com.exiros.tracker.ui.ExirosBlue
 import com.exiros.tracker.ui.ExirosError
@@ -118,13 +120,36 @@ private fun RootScreen(repo: TripRepository) {
         hasLocationPermission = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
     }
+    // Pedimos ubicación + notificación (la notificación fija del servicio) + reconocimiento de
+    // actividad (hibernación). El sistema ignora las que no apliquen a la versión.
     fun requestLocation() = permissionLauncher.launch(
-        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+        buildList {
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                add(Manifest.permission.ACTIVITY_RECOGNITION)
+            }
+        }.toTypedArray(),
     )
 
     // Gate de carga: evita el parpadeo del formulario antes de que Room emita el viaje activo.
     val tripFlow = remember(repo) { repo.activeTrip.map<ActiveTripEntity?, TripLoad> { TripLoad.Ready(it) } }
     val tripState by tripFlow.collectAsState(initial = TripLoad.Loading)
+
+    // Arranca/detiene el servicio de rastreo según haya viaje activo y permiso. Sobrevive en 2º
+    // plano por sí mismo; aquí solo lo encendemos/apagamos al entrar/salir de "En ruta".
+    val ready = tripState as? TripLoad.Ready
+    val hasActiveTrip = ready?.trip != null
+    val readyNoTrip = ready != null && ready.trip == null
+    LaunchedEffect(hasActiveTrip, hasLocationPermission, readyNoTrip) {
+        when {
+            hasActiveTrip && hasLocationPermission -> TrackingService.start(context)
+            readyNoTrip -> TrackingService.stop(context)
+        }
+    }
 
     when (val s = tripState) {
         TripLoad.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

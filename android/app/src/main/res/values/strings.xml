@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Exiros Operador</string>
+
+    <!-- Notificación del servicio de rastreo (3.2) -->
+    <string name="tracking_channel">Rastreo en ruta</string>
+    <string name="tracking_title">Viaje en ruta</string>
+    <string name="tracking_starting">Iniciando rastreo…</string>
+    <string name="tracking_active">Rastreando hacia %1$s</string>
+    <string name="tracking_active_state">Rastreo activo · camión %1$s</string>
 </resources>

@@ -12,6 +12,9 @@ class TripRepository(context: Context) {
 
     val activeTrip: Flow<ActiveTripEntity?> = dao.observeActiveTrip()
 
+    /** Lectura puntual del viaje activo (la usa el servicio al arrancar). */
+    suspend fun getActiveTrip(): ActiveTripEntity? = dao.getActiveTrip()
+
     fun locationCount(tripId: String): Flow<Int> = dao.observeLocationCount(tripId)
 
     fun lastLocation(tripId: String): Flow<LocationEntity?> = dao.observeLastLocation(tripId)
