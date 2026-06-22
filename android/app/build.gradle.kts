@@ -68,4 +68,7 @@ dependencies {
 
     // FusedLocation: fija ubicación fusionando GPS+WiFi+celular, con accuracyMeters por fix.
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    // WorkManager: envío diferido por lotes (3.3), con reintentos + constraint de red.
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 }

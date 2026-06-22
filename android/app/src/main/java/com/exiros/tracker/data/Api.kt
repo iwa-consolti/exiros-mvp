@@ -107,30 +107,44 @@ class ApiClient {
     }
 
     /**
-     * Bala trazadora (Slice 0): manda 1 punto al viaje usando el tripToken (Bearer).
-     * 3.4 reemplazará esto por envío por lotes GZIP con idempotencia.
+     * Envía un lote de puntos comprimido con GZIP (3.3 → 3.4). `batchId` da idempotencia:
+     * reenviar el mismo lote no duplica en el backend. Lanza si la respuesta no es 2xx
+     * (el WorkManager decide reintentar). Devuelve `stopTracking` (lo usará Fase 4).
      */
-    suspend fun sendLocation(
+    suspend fun sendBatch(
         tripId: String,
         tripToken: String,
-        lat: Double,
-        lng: Double,
-        accuracyMeters: Double,
-    ): Unit = withContext(Dispatchers.IO) {
-        val payload = JSONObject()
-            .put("lat", lat)
-            .put("lng", lng)
-            .put("accuracyMeters", accuracyMeters)
-            .put("recordedAt", java.time.Instant.now().toString())
-            .toString()
+        batchId: String,
+        points: List<LocationEntity>,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val arr = JSONArray()
+        for (p in points) {
+            arr.put(
+                JSONObject()
+                    .put("lat", p.lat)
+                    .put("lng", p.lng)
+                    .put("accuracyMeters", p.accuracyMeters)
+                    .put("recordedAt", java.time.Instant.ofEpochMilli(p.recordedAt).toString()),
+            )
+        }
+        val payload = JSONObject().put("batchId", batchId).put("points", arr).toString()
+        val body = gzip(payload.toByteArray(Charsets.UTF_8)).toRequestBody(JSON)
         val req = Request.Builder()
             .url("$base/api/mobile/trips/$tripId/locations")
             .header("Authorization", "Bearer $tripToken")
-            .post(payload.toRequestBody(JSON))
+            .header("Content-Encoding", "gzip")
+            .post(body)
             .build()
         client.newCall(req).execute().use { res ->
-            val body = res.body?.string().orEmpty()
-            if (!res.isSuccessful) error("location HTTP ${res.code}: $body")
+            val resBody = res.body?.string().orEmpty()
+            if (!res.isSuccessful) error("batch HTTP ${res.code}: $resBody")
+            runCatching { JSONObject(resBody).optBoolean("stopTracking", false) }.getOrDefault(false)
         }
+    }
+
+    private fun gzip(bytes: ByteArray): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        java.util.zip.GZIPOutputStream(out).use { it.write(bytes) }
+        return out.toByteArray()
     }
 }

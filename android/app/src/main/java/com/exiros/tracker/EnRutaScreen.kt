@@ -30,11 +30,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.exiros.tracker.data.ActiveTripEntity
 import com.exiros.tracker.data.TripRepository
+import com.exiros.tracker.sync.SyncScheduler
 import com.exiros.tracker.ui.BorderGray
 import com.exiros.tracker.ui.ExirosBlue
 import com.exiros.tracker.ui.ExirosError
@@ -63,6 +65,7 @@ fun EnRutaScreen(
     hasLocationPermission: Boolean,
     onRequestPermission: () -> Unit,
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     val pointCount by repo.locationCount(trip.tripId).collectAsState(initial = 0)
@@ -154,25 +157,12 @@ fun EnRutaScreen(
             )
         }
 
-        // Afordancias de DEBUG: drenar manual (sustituto temporal de 3.3) y reset local de prueba.
+        // Afordancias de DEBUG: forzar el sync real (WorkManager) y reset local de prueba.
         if (BuildConfig.DEBUG) {
             OutlinedButton(
                 onClick = {
-                    scope.launch {
-                        val pending = repo.unsentLocations(trip.tripId)
-                        if (pending.isEmpty()) { note = "Nada pendiente por enviar"; return@launch }
-                        val api = com.exiros.tracker.data.ApiClient()
-                        var ok = 0
-                        val sentIds = mutableListOf<Long>()
-                        for (p in pending) {
-                            val r = runCatching {
-                                api.sendLocation(trip.tripId, trip.tripToken, p.lat, p.lng, p.accuracyMeters)
-                            }
-                            if (r.isSuccess) { ok++; sentIds += p.id }
-                        }
-                        if (sentIds.isNotEmpty()) repo.markSent(sentIds)
-                        note = "Enviados $ok/${pending.size} (debug; 3.3 hará el lote real)"
-                    }
+                    SyncScheduler.syncNow(context)
+                    note = "Sync encolado (WorkManager enviará el lote GZIP)"
                 },
                 shape = cardShape,
                 modifier = Modifier.fillMaxWidth(),

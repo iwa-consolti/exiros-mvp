@@ -18,6 +18,7 @@ import com.exiros.tracker.R
 import com.exiros.tracker.data.CaptureConfig
 import com.exiros.tracker.data.LocationCapture
 import com.exiros.tracker.data.TripRepository
+import com.exiros.tracker.sync.SyncScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -62,6 +63,7 @@ class TrackingService : Service() {
         // Android 14 exige startForeground en los primeros segundos, ANTES de cualquier espera.
         startForegroundNow(getString(R.string.tracking_starting))
         ActivityTransitionReceiver.register(this)
+        SyncScheduler.schedulePeriodic(this) // envío por lotes cada ~15 min mientras dure el viaje
         startCapture()
         return START_STICKY
     }
@@ -102,6 +104,7 @@ class TrackingService : Service() {
     private fun stopTracking() {
         capture.stop()
         ActivityTransitionReceiver.unregister(this)
+        SyncScheduler.cancel(this)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
