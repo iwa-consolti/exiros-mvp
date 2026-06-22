@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { fetchTrips, photoUrl, type Trip } from './api';
+import { photoUrl, type Trip } from './api';
 import './TripsList.css';
 
 // Bloque 2.4 [WEB]: lista/tarjetas de viajes. Slice de lectura del portal (W2 mínimo).
@@ -18,30 +17,7 @@ function formatDate(iso: string | null): string {
   });
 }
 
-export default function TripsList() {
-  const [trips, setTrips] = useState<Trip[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchTrips()
-      .then((data) => !cancelled && setTrips(data))
-      .catch((e: unknown) => !cancelled && setError(String(e)));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (error) {
-    return (
-      <p className="trips-state trips-state--error">
-        No se pudieron cargar los viajes: {error}
-      </p>
-    );
-  }
-  if (trips === null) {
-    return <p className="trips-state">Cargando viajes…</p>;
-  }
+export default function TripsList({ trips }: { trips: Trip[] }) {
   if (trips.length === 0) {
     return <p className="trips-state">No hay viajes registrados todavía.</p>;
   }

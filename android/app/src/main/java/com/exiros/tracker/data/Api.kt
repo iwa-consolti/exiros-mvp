@@ -18,6 +18,8 @@ data class Destination(val id: String, val name: String)
 /** Respuesta de POST /api/mobile/trips. */
 data class TripResult(val tripId: String, val tripToken: String, val status: String)
 
+private val JSON = "application/json".toMediaType()
+
 /** Cliente HTTP del espacio mobile (X-App-Key). Una instancia, reutilizable. */
 class ApiClient {
     private val client = OkHttpClient.Builder()
@@ -89,6 +91,34 @@ class ApiClient {
                 tripToken = o.getString("tripToken"),
                 status = o.getString("status"),
             )
+        }
+    }
+
+    /**
+     * Bala trazadora (Slice 0): manda 1 punto al viaje usando el tripToken (Bearer).
+     * 3.4 reemplazará esto por envío por lotes GZIP con idempotencia.
+     */
+    suspend fun sendLocation(
+        tripId: String,
+        tripToken: String,
+        lat: Double,
+        lng: Double,
+        accuracyMeters: Double,
+    ): Unit = withContext(Dispatchers.IO) {
+        val payload = JSONObject()
+            .put("lat", lat)
+            .put("lng", lng)
+            .put("accuracyMeters", accuracyMeters)
+            .put("recordedAt", java.time.Instant.now().toString())
+            .toString()
+        val req = Request.Builder()
+            .url("$base/api/mobile/trips/$tripId/locations")
+            .header("Authorization", "Bearer $tripToken")
+            .post(payload.toRequestBody(JSON))
+            .build()
+        client.newCall(req).execute().use { res ->
+            val body = res.body?.string().orEmpty()
+            if (!res.isSuccessful) error("location HTTP ${res.code}: $body")
         }
     }
 }

@@ -6,8 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
 export class WebTripsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.trip.findMany({
+  async findAll() {
+    const trips = await this.prisma.trip.findMany({
       orderBy: [{ status: 'asc' }, { startedAt: 'desc' }],
       select: {
         id: true,
@@ -20,8 +20,22 @@ export class WebTripsService {
         startedAt: true,
         endedAt: true,
         photoPath: true,
-        destination: { select: { name: true } },
+        destination: {
+          select: { name: true, centerLat: true, centerLng: true },
+        },
+        // Último punto de ruta para pintarlo en el mapa (Slice 0 / bala trazadora).
+        locations: {
+          orderBy: { recordedAt: 'desc' },
+          take: 1,
+          select: { lat: true, lng: true, recordedAt: true },
+        },
       },
     });
+
+    // Aplanar el último punto a `lastLocation` (o null) para el portal.
+    return trips.map(({ locations, ...trip }) => ({
+      ...trip,
+      lastLocation: locations[0] ?? null,
+    }));
   }
 }

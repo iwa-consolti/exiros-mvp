@@ -16,7 +16,9 @@ export interface Trip {
   startedAt: string;
   endedAt: string | null;
   photoPath: string;
-  destination: { name: string } | null;
+  destination: { name: string; centerLat: number; centerLng: number } | null;
+  /** Último punto de ruta (bala trazadora / Slice 0); null si aún no llega ninguno. */
+  lastLocation: { lat: number; lng: number; recordedAt: string } | null;
 }
 
 export async function fetchTrips(): Promise<Trip[]> {

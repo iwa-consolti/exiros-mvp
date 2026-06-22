@@ -80,6 +80,7 @@ fun TripFormScreen() {
     var clientRequestId by remember { mutableStateOf(UUID.randomUUID().toString()) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var lastTrip by remember { mutableStateOf<com.exiros.tracker.data.TripResult?>(null) }
 
     val photoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
@@ -208,6 +209,7 @@ fun TripFormScreen() {
                                     photoMime = photoMime,
                                 )
                             }.onSuccess { res ->
+                                lastTrip = res
                                 message = "Viaje creado ✓ ${res.status} (id ${res.tripId.take(8)}…)"
                                 clientRequestId = UUID.randomUUID().toString()
                             }.onFailure {
@@ -222,6 +224,35 @@ fun TripFormScreen() {
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(if (busy) "Enviando…" else "Iniciar viaje")
+        }
+
+        // Bala trazadora (Slice 0): tras crear el viaje, manda 1 coord hardcodeada.
+        lastTrip?.let { trip ->
+            Button(
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        runCatching {
+                            api.sendLocation(
+                                tripId = trip.tripId,
+                                tripToken = trip.tripToken,
+                                lat = 25.6700,
+                                lng = -100.3000,
+                                accuracyMeters = 12.0,
+                            )
+                        }.onSuccess {
+                            message = "Ubicación enviada ✓ (25.6700, -100.3000)"
+                        }.onFailure {
+                            message = "Error al enviar ubicación: ${it.message}"
+                        }
+                        busy = false
+                    }
+                },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Enviar ubicación de prueba (bala trazadora)")
+            }
         }
 
         message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
