@@ -35,6 +35,6 @@ export class MobileLocationsController {
     if (req.trip.id !== id) {
       throw new ForbiddenException('El tripToken no corresponde a este viaje');
     }
-    return this.locations.addBatch(id, dto, req.trip.status);
+    return this.locations.addBatch(req.trip, dto);
   }
 }

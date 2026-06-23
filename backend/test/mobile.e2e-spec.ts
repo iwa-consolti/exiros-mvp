@@ -258,4 +258,43 @@ describe('Flujo móvil (e2e)', () => {
     expect(trip?.lastLocation).not.toBeNull();
     expect(trip?.lastLocation?.lat).toBeCloseTo(25.67, 2);
   });
+
+  // --- Cierre automático por geocerca (4.1). El destino e2e está en (25.6, -100.3) r=300 m. ---
+  it('punto dentro de la geocerca → cierra el viaje y responde stopTracking true', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/mobile/trips/${tripId}/locations`)
+      .set('Authorization', `Bearer ${tripToken}`)
+      .send(
+        batch({
+          batchId: randomUUID(),
+          points: [
+            {
+              lat: 25.6,
+              lng: -100.3,
+              accuracyMeters: 8,
+              recordedAt: new Date().toISOString(),
+            },
+          ],
+        }),
+      );
+    const body = res.body as IngestResp;
+    expect(res.status).toBe(200);
+    expect(body.trip.status).toBe('CONCLUIDO');
+    expect(body.trip.stopTracking).toBe(true);
+    const closed = await prisma.trip.findUnique({ where: { id: tripId } });
+    expect(closed?.status).toBe('CONCLUIDO');
+    expect(closed?.closureType).toBe('AUTO_GEOFENCE');
+  });
+
+  it('ingesta a un viaje ya CONCLUIDO → 200, descarta puntos, stopTracking true', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/mobile/trips/${tripId}/locations`)
+      .set('Authorization', `Bearer ${tripToken}`)
+      .send(batch({ batchId: randomUUID() }));
+    const body = res.body as IngestResp;
+    expect(res.status).toBe(200);
+    expect(body.accepted).toBe(0);
+    expect(body.trip.status).toBe('CONCLUIDO');
+    expect(body.trip.stopTracking).toBe(true);
+  });
 });

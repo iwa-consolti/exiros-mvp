@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -16,7 +17,9 @@ import androidx.core.content.ContextCompat
 import com.exiros.tracker.BuildConfig
 import com.exiros.tracker.MainActivity
 import com.exiros.tracker.R
+import com.exiros.tracker.data.ActiveTripEntity
 import com.exiros.tracker.data.CaptureConfig
+import com.exiros.tracker.data.Fix
 import com.exiros.tracker.data.LocationCapture
 import com.exiros.tracker.data.TripRepository
 import com.exiros.tracker.sync.SyncScheduler
@@ -41,7 +44,9 @@ class TrackingService : Service() {
     private lateinit var capture: LocationCapture
 
     private var tripId: String? = null
+    private var activeTrip: ActiveTripEntity? = null
     private var hibernating = false
+    private var arrivalSynced = false // un solo sync prioritario al anticipar la llegada
 
     override fun onCreate() {
         super.onCreate()
@@ -81,13 +86,25 @@ class TrackingService : Service() {
                 return@launch
             }
             tripId = trip.tripId
+            activeTrip = trip
             updateNotification(getString(R.string.tracking_active, trip.destinationName))
-            capture.start(if (hibernating) LocationCapture.HIBERNATING else LocationCapture.MOVING) { fix ->
-                val id = tripId ?: return@start
-                scope.launch {
-                    repo.recordPoint(id, fix.lat, fix.lng, fix.accuracyMeters, fix.recordedAt)
-                }
-            }
+            capture.start(if (hibernating) LocationCapture.HIBERNATING else LocationCapture.MOVING, ::handleFix)
+        }
+    }
+
+    /** Encola el fix y, si cae cerca de la geocerca, dispara un sync prioritario (sin detener
+     *  GPS) para que el backend evalúe el cierre cuanto antes (anticipación de llegada, 4.1). */
+    private fun handleFix(fix: Fix) {
+        val id = tripId ?: return
+        scope.launch { repo.recordPoint(id, fix.lat, fix.lng, fix.accuracyMeters, fix.recordedAt) }
+
+        val trip = activeTrip ?: return
+        if (arrivalSynced) return
+        val out = FloatArray(1)
+        Location.distanceBetween(fix.lat, fix.lng, trip.centerLat, trip.centerLng, out)
+        if (out[0] <= trip.radiusMeters + ARRIVAL_MARGIN_M) {
+            arrivalSynced = true
+            SyncScheduler.syncNow(this)
         }
     }
 
@@ -107,12 +124,10 @@ class TrackingService : Service() {
     private fun applyHibernation(still: Boolean) {
         if (still == hibernating) return
         hibernating = still
-        val id = tripId ?: return
+        tripId ?: return
         val config: CaptureConfig =
             if (still) LocationCapture.HIBERNATING else LocationCapture.MOVING
-        capture.start(config) { fix ->
-            scope.launch { repo.recordPoint(id, fix.lat, fix.lng, fix.accuracyMeters, fix.recordedAt) }
-        }
+        capture.start(config, ::handleFix)
         val trip = getString(R.string.tracking_active_state, if (still) "detenido" else "en marcha")
         updateNotification(trip)
     }
@@ -183,6 +198,7 @@ class TrackingService : Service() {
         private const val CHANNEL_ID = "tracking"
         private const val NOTIF_ID = 1
         private const val DEBUG_SYNC_MS = 30_000L // solo debug: sube cada 30 s en pruebas
+        private const val ARRIVAL_MARGIN_M = 100f // margen sobre el radio para anticipar llegada
 
         const val ACTION_START = "com.exiros.tracker.START"
         const val ACTION_STOP = "com.exiros.tracker.STOP"

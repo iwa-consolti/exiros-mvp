@@ -12,11 +12,11 @@ function context(headers: Record<string, string>): ExecutionContext {
 }
 
 describe('TripTokenGuard', () => {
-  let prisma: { trip: { findFirst: jest.Mock } };
+  let prisma: { trip: { findUnique: jest.Mock } };
   let guard: TripTokenGuard;
 
   beforeEach(() => {
-    prisma = { trip: { findFirst: jest.fn() } };
+    prisma = { trip: { findUnique: jest.fn() } };
     guard = new TripTokenGuard(prisma as never);
   });
 
@@ -24,33 +24,33 @@ describe('TripTokenGuard', () => {
     await expect(guard.canActivate(context({}))).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
-    expect(prisma.trip.findFirst).not.toHaveBeenCalled();
+    expect(prisma.trip.findUnique).not.toHaveBeenCalled();
   });
 
-  it('token que no resuelve a un viaje EN_RUTA → 401', async () => {
-    prisma.trip.findFirst.mockResolvedValue(null);
+  it('token que no resuelve a ningún viaje → 401', async () => {
+    prisma.trip.findUnique.mockResolvedValue(null);
     await expect(
       guard.canActivate(context({ authorization: 'Bearer trk_live_xxx' })),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it('token válido → true, busca por hash + EN_RUTA y adjunta el viaje', async () => {
+  it('token válido → true, busca por hash (cualquier estado) y adjunta el viaje', async () => {
     const token = 'trk_live_abc';
-    const trip = { id: 'trip-1', status: 'EN_RUTA' };
-    prisma.trip.findFirst.mockResolvedValue(trip);
+    // Un viaje CONCLUIDO también resuelve (el service decide descartar + stopTracking).
+    const trip = { id: 'trip-1', status: 'CONCLUIDO' };
+    prisma.trip.findUnique.mockResolvedValue(trip);
 
     const ctx = context({ authorization: `Bearer ${token}` });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
 
-    const calls = prisma.trip.findFirst.mock.calls as Array<
-      [{ where: { status: string; tripTokenHash: string } }]
+    const calls = prisma.trip.findUnique.mock.calls as Array<
+      [{ where: { tripTokenHash: string } }]
     >;
     const where = calls[0][0].where;
-    expect(where.status).toBe('EN_RUTA');
+    expect(where).not.toHaveProperty('status'); // ya no filtra por EN_RUTA
     expect(where.tripTokenHash).toBe(
       createHash('sha256').update(token).digest('hex'),
     );
-    // El viaje resuelto queda en req.trip para el handler.
     const req = ctx.switchToHttp().getRequest<{ trip?: unknown }>();
     expect(req.trip).toBe(trip);
   });
