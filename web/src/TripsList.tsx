@@ -1,8 +1,8 @@
-import { photoUrl, type Trip } from './api';
+import { closeTripAdmin, photoUrl, type Trip } from './api';
 import './TripsList.css';
 
-// Bloque 2.4 [WEB]: lista/tarjetas de viajes. Slice de lectura del portal (W2 mínimo).
-// Fuera de alcance aquí: filtros, paginación, export, forzar cierre (fase posterior).
+// Bloque 2.4 [WEB]: lista/tarjetas de viajes (W2 mínimo) + forzar cierre admin (4.5 / W3).
+// Fuera de alcance aquí: filtros, paginación, export, página de detalle completa.
 
 const STATUS_LABEL: Record<Trip['status'], string> = {
   EN_RUTA: 'En ruta',
@@ -17,9 +17,27 @@ function formatDate(iso: string | null): string {
   });
 }
 
-export default function TripsList({ trips }: { trips: Trip[] }) {
+export default function TripsList({
+  trips,
+  onClosed,
+}: {
+  trips: Trip[];
+  onClosed?: () => void;
+}) {
   if (trips.length === 0) {
     return <p className="trips-state">No hay viajes registrados todavía.</p>;
+  }
+
+  // Forzar cierre admin: pide observación (obligatoria) y refresca al terminar.
+  async function forceClose(id: string) {
+    const observations = window.prompt('Observación del cierre (obligatoria):')?.trim();
+    if (!observations) return;
+    try {
+      await closeTripAdmin(id, observations);
+      onClosed?.();
+    } catch (e) {
+      window.alert(`No se pudo cerrar: ${String(e)}`);
+    }
   }
 
   return (
@@ -58,6 +76,11 @@ export default function TripsList({ trips }: { trips: Trip[] }) {
                 <dd>{formatDate(t.startedAt)}</dd>
               </div>
             </dl>
+            {t.status === 'EN_RUTA' && (
+              <button className="trip-card__close" onClick={() => void forceClose(t.id)}>
+                Forzar cierre
+              </button>
+            )}
           </div>
         </li>
       ))}

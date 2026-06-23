@@ -33,3 +33,16 @@ export async function fetchTrips(): Promise<Trip[]> {
 export function photoUrl(photoPath: string): string {
   return `${API_BASE}${photoPath}`;
 }
+
+/** Cierre forzado por admin (W3 / 4.5). 409 = el viaje ya estaba concluido (carrera). */
+export async function closeTripAdmin(id: string, observations: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/web/trips/${id}/close`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ observations }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? `cierre → ${res.status}`);
+  }
+}

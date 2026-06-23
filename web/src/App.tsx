@@ -73,7 +73,7 @@ function App() {
         {trips !== null && (
           <>
             <TripsMap trips={trips} />
-            <TripsList trips={trips} />
+            <TripsList trips={trips} onClosed={() => void load()} />
           </>
         )}
       </main>

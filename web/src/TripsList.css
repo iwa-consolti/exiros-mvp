@@ -90,3 +90,20 @@
 .trips-state--error {
   color: #b3261e;
 }
+
+.trip-card__close {
+  margin-top: 0.75rem;
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #c62828;
+  border-radius: 8px;
+  background: #fff;
+  color: #c62828;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trip-card__close:hover {
+  background: #fdecec;
+}
