@@ -1,0 +1,147 @@
+.btn-export {
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-export:hover {
+  background: #15803d;
+}
+.btn-export:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.viajes-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.viajes-filters .viajes-search {
+  flex: 1;
+  min-width: 220px;
+}
+.viajes-filters input,
+.viajes-filters select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.viajes-table-wrap {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.viajes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.viajes-table thead th {
+  text-align: left;
+  padding: 0.8rem 1rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+.viajes-table tbody td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+.viajes-table tbody tr {
+  cursor: pointer;
+}
+.viajes-table tbody tr:hover {
+  background: #f8fafc;
+}
+.viajes-folio {
+  font-weight: 700;
+  color: #0f172a;
+}
+.viajes-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 2rem !important;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.badge--en_ruta {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.badge--concluido {
+  background: #eef2f7;
+  color: #475569;
+}
+
+.viajes-eye {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  opacity: 0.6;
+}
+.viajes-eye:hover {
+  opacity: 1;
+}
+
+.viajes-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+.viajes-pages {
+  display: flex;
+  gap: 0.3rem;
+}
+.viajes-pages button {
+  min-width: 32px;
+  height: 32px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #334155;
+}
+.viajes-pages button.is-active {
+  background: #1d6fe0;
+  color: #fff;
+  border-color: #1d6fe0;
+}
+.viajes-pages button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
