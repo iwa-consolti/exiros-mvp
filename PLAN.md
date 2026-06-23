@@ -478,7 +478,7 @@ Orden por dependencia + riesgo alto temprano. Cada slice: UI → endpoint → l�
 - [ ] Secretos fuera del repo; `.env.example` presente
 
 **Entrega**
-- [ ] Deploy demo accesible (o túnel listo)
+- [x] Deploy demo accesible (o túnel listo) *(túnel cloudflared, 9.1; deploy cloud pospuesto)*
 - [ ] Script simulador de ruta para la demo
 - [ ] README de arranque (local) y de despliegue
 - [ ] ADRs y specs actualizadas
@@ -613,7 +613,7 @@ Cierra los huecos que dependen de nosotros (distintos de H1–H11, que dependen 
 - [x] **8.2 `[BE]`** Jest unit (geocerca, máquina de estados, validaciones) + e2e Supertest (trips, ingesta, cierre). **Hecho cuando:** gates verdes. **(pendiente confirmar humano)** *(hecho prev.; AMPLIADO 2026-06-23: e2e 14→46 cubriendo authz de TODO endpoint nuevo (401 sin token, 403 MONITOR en Destinos/Usuarios, validaciones 400, idempotencia/409). Unit 21. **Pendiente menor (mejora, no bloquea):** unit tests aislados para los services nuevos (Auth/Users/Destinations) — hoy cubiertos vía e2e.)*
 
 #### Fase 9 — Deploy + demo
-- **9.1 `[INF]`** Túnel cloudflared (dev) + deploy Railway/Render + Postgres managed (demo).
+- [x] **9.1 `[INF]`** Túnel cloudflared (dev). **(pendiente confirmar humano)** *(2026-06-23: hecho — SOLO túnel, por decisión de Rogelio: "cloud no requerido / infra al mínimo". Deploy Railway/Render + PG managed POSPUESTO (D2 con Julio, no se hizo). `brew install cloudflared` + `scripts/tunnel.sh` = quick tunnel HTTPS contra `localhost:3000` → URL pública `*.trycloudflare.com` sin cuenta ni costo. Para teléfono físico/red externa; el emulador sigue con `10.0.2.2:3000`. **Verificado e2e:** túnel registró conexión con edge (qro01) y por la URL pública `GET /api/web/trips`→401 y `POST /auth/login {}`→400 (auth+validación responden). Gotcha: la URL tarda ~5-8s en quedar usable (esperar "Registered tunnel connection"); URL cambia en cada arranque. /health (H6) sigue pendiente para 9.x.)*
 - **9.2 `[SCRIPT]`** Simulador de ruta (reproduce GPX / mock locations) para la demo (H3).
 - **9.3 `[DOC]`** README de arranque + ensayo de demo. **Hecho cuando:** la demo e2e corre 2 veces seguidas sin fallar.
 
