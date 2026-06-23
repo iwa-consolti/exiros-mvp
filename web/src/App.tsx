@@ -6,7 +6,7 @@ import MapaPage from './pages/MapaPage';
 import ViajesPage from './pages/ViajesPage';
 import ViajeDetallePage from './pages/ViajeDetallePage';
 import DestinosPage from './pages/DestinosPage';
-import PlaceholderPage from './pages/PlaceholderPage';
+import UsuariosPage from './pages/UsuariosPage';
 
 /** Sin sesión → Login; con sesión → shell con sus rutas (10.1). */
 function Routed() {
@@ -21,15 +21,7 @@ function Routed() {
           <Route path="/viajes" element={<ViajesPage />} />
           <Route path="/viajes/:id" element={<ViajeDetallePage />} />
           <Route path="/destinos" element={<DestinosPage />} />
-          <Route
-            path="/usuarios"
-            element={
-              <PlaceholderPage
-                title="Gestión de usuarios"
-                sub="Administra los usuarios que tienen acceso al sistema."
-              />
-            }
-          />
+          <Route path="/usuarios" element={<UsuariosPage />} />
           <Route path="*" element={<Navigate to="/mapa" replace />} />
         </Route>
       </Routes>

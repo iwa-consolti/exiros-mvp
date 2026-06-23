@@ -154,7 +154,14 @@ describe('Flujo móvil (e2e)', () => {
       .deleteMany({ where: { name: { startsWith: 'E2E-CRUD' } } })
       .catch(() => undefined);
     await prisma.user
-      .deleteMany({ where: { email: { in: [adminEmail, monitorEmail] } } })
+      .deleteMany({
+        where: {
+          OR: [
+            { email: { in: [adminEmail, monitorEmail] } },
+            { email: { startsWith: 'e2e-users-' } },
+          ],
+        },
+      })
       .catch(() => undefined);
     await prisma.$disconnect();
     await app.close();
@@ -563,6 +570,91 @@ describe('Flujo móvil (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`);
     expect(on.status).toBe(200);
     expect((on.body as { isActive: boolean }).isActive).toBe(true);
+  });
+
+  // --- Usuarios CRUD (10.6 / Fase 6.2) ---
+  let crudUserId = '';
+  const newUserEmail = `e2e-users-new-${Date.now()}@exiros.com`;
+
+  it('GET /web/users con MONITOR → 403', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/web/users')
+      .set('Authorization', `Bearer ${monitorToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('POST /web/users con password corta (<8) → 400', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/web/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Corto',
+        email: `e2e-users-x-${Date.now()}@exiros.com`,
+        role: 'MONITOR',
+        password: '123',
+      });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /web/users con admin → 201 (sin passwordHash)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/web/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'E2E Nuevo',
+        email: newUserEmail,
+        role: 'MONITOR',
+        password: 'monitor1234',
+      });
+    const body = res.body as Record<string, unknown>;
+    expect(res.status).toBe(201);
+    expect(body.email).toBe(newUserEmail);
+    expect(body).not.toHaveProperty('passwordHash');
+    crudUserId = body.id as string;
+  });
+
+  it('POST /web/users email duplicado → 409', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/web/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Dup',
+        email: newUserEmail,
+        role: 'MONITOR',
+        password: 'monitor1234',
+      });
+    expect(res.status).toBe(409);
+  });
+
+  it('PATCH /web/users/:id → cambia rol a ADMIN; luego baja/restaura', async () => {
+    const up = await request(app.getHttpServer())
+      .patch(`/api/web/users/${crudUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'E2E Nuevo', role: 'ADMIN' });
+    expect(up.status).toBe(200);
+    expect((up.body as { role: string }).role).toBe('ADMIN');
+
+    const off = await request(app.getHttpServer())
+      .patch(`/api/web/users/${crudUserId}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(off.status).toBe(200);
+    expect((off.body as { isActive: boolean }).isActive).toBe(false);
+  });
+
+  it('protección: dar de baja a un SUPER_ADMIN → 403', async () => {
+    const sa = await prisma.user.create({
+      data: {
+        email: `e2e-users-sa-${Date.now()}@exiros.com`,
+        name: 'E2E Super',
+        passwordHash: await bcrypt.hash('superpass123', 10),
+        role: Role.SUPER_ADMIN,
+      },
+    });
+    const res = await request(app.getHttpServer())
+      .patch(`/api/web/users/${sa.id}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(403);
+    await prisma.user.delete({ where: { id: sa.id } }).catch(() => undefined);
   });
 
   // --- Detalle de viaje (10.4) ---

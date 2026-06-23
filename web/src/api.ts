@@ -63,6 +63,16 @@ export interface TripDetail {
   route: RoutePoint[];
 }
 
+/** Usuario del staff (W5). */
+export interface StaffUser {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  isActive: boolean;
+  createdAt: string;
+}
+
 /** Destino/geocerca (W4). */
 export interface Destination {
   id: string;
@@ -160,6 +170,52 @@ export async function closeTripAdmin(id: string, observations: string): Promise<
     body: JSON.stringify({ observations }),
   });
   await ensureOk(res, `cierre → ${res.status}`);
+}
+
+// --- Usuarios (W5 / Fase 6.2) ---------------------------------------------
+export interface CreateUserInput {
+  name: string;
+  email: string;
+  role: Role;
+  password: string;
+}
+
+export async function fetchUsers(): Promise<StaffUser[]> {
+  const res = await fetch(`${API_BASE}/api/web/users`, { headers: authHeaders() });
+  await ensureOk(res, `GET /api/web/users → ${res.status}`);
+  return res.json() as Promise<StaffUser[]>;
+}
+
+export async function createUser(input: CreateUserInput): Promise<StaffUser> {
+  const res = await fetch(`${API_BASE}/api/web/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(input),
+  });
+  await ensureOk(res, 'No se pudo crear el usuario');
+  return res.json() as Promise<StaffUser>;
+}
+
+export async function updateUser(
+  id: string,
+  input: { name: string; role: Role },
+): Promise<StaffUser> {
+  const res = await fetch(`${API_BASE}/api/web/users/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(input),
+  });
+  await ensureOk(res, 'No se pudo actualizar el usuario');
+  return res.json() as Promise<StaffUser>;
+}
+
+export async function setUserActive(id: string, active: boolean): Promise<void> {
+  const action = active ? 'restore' : 'deactivate';
+  const res = await fetch(`${API_BASE}/api/web/users/${id}/${action}`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+  });
+  await ensureOk(res, 'No se pudo cambiar el estado del usuario');
 }
 
 // --- Destinos (W4 / Fase 5.1) ---------------------------------------------

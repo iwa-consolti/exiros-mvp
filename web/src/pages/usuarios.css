@@ -1,0 +1,94 @@
+/* Panel lateral (slide-over) "Nuevo/Editar usuario" */
+.panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 2000;
+}
+.panel {
+  background: #fff;
+  width: 420px;
+  max-width: 92vw;
+  height: 100%;
+  padding: 1.5rem;
+  overflow-y: auto;
+  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.15);
+}
+.panel-pass {
+  display: flex;
+  gap: 0.5rem;
+}
+.panel-pass .modal-input {
+  flex: 1;
+}
+.panel-eye {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 8px;
+  padding: 0 0.7rem;
+  cursor: pointer;
+}
+.panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 1.5rem;
+}
+
+/* Badges de rol */
+.role {
+  text-transform: none;
+}
+.role::before {
+  display: none;
+}
+.role--super {
+  background: #0d2347;
+  color: #fff;
+}
+.role--admin {
+  background: #1e293b;
+  color: #fff;
+}
+.role--monitor {
+  background: #e0ecfb;
+  color: #1d6fe0;
+}
+
+/* Botón de baja (rojo) */
+.btn-danger {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
+/* Modal de confirmación "Dar de baja" */
+.confirm {
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.5rem;
+  width: 420px;
+  max-width: 92vw;
+  margin: auto;
+}
+.confirm h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+.confirm p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}

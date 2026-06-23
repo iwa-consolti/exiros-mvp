@@ -7,6 +7,8 @@ import { WebTripsService } from './web-trips.service';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { WebDestinationsController } from './web-destinations.controller';
+import { WebUsersController } from './web-users.controller';
+import { UsersService } from './users.service';
 
 /** Espacio /api/web/* (portal de monitoristas). Protegido con JwtAuthGuard (Fase 6.1). */
 @Module({
@@ -15,7 +17,8 @@ import { WebDestinationsController } from './web-destinations.controller';
     WebTripsController,
     ReportsController,
     WebDestinationsController,
+    WebUsersController,
   ],
-  providers: [WebTripsService, ReportsService],
+  providers: [WebTripsService, ReportsService, UsersService],
 })
 export class WebModule {}
