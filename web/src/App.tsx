@@ -4,8 +4,14 @@ import TripsList from './TripsList';
 import TripsMap from './TripsMap';
 import './App.css';
 
-// Intervalo de refresco (polling) configurable por env; por defecto 20 min (rango 15–20 del doc).
-const POLL_MS = Number(import.meta.env.VITE_POLL_MS) || 20 * 60 * 1000;
+// Intervalo de refresco (polling) configurable por env (`VITE_POLL_MS`). Producción: 15 min
+// (doc §6). En pruebas se baja con `.env.local` (p.ej. 30000) para ver el camión moverse pronto.
+const POLL_MS = Number(import.meta.env.VITE_POLL_MS) || 15 * 60 * 1000;
+
+/** "cada 30 s" / "cada 15 min" según el intervalo. */
+function formatInterval(ms: number): string {
+  return ms < 60_000 ? `cada ${Math.round(ms / 1000)} s` : `cada ${Math.round(ms / 60_000)} min`;
+}
 
 // W1 — Mapa de tránsito (3.5): el portal re-consulta los viajes cada POLL_MS y el mapa
 // mueve el camión a su último punto. El fetch vive aquí y se comparte con mapa + lista (DRY).
@@ -42,8 +48,6 @@ function App() {
     return () => clearInterval(id);
   }, [load]);
 
-  const minutes = Math.round(POLL_MS / 60000);
-
   return (
     <div className="portal-shell">
       <header className="portal-header">
@@ -51,7 +55,7 @@ function App() {
         <div className="portal-status">
           {updatedAt && (
             <span className="portal-updated">
-              Actualizado {updatedAt.toLocaleTimeString()} · cada {minutes} min
+              Actualizado {updatedAt.toLocaleTimeString()} · {formatInterval(POLL_MS)}
             </span>
           )}
           <button className="portal-refresh" onClick={() => void load()} disabled={refreshing}>

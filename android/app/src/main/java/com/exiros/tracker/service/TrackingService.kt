@@ -13,6 +13,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.exiros.tracker.BuildConfig
 import com.exiros.tracker.MainActivity
 import com.exiros.tracker.R
 import com.exiros.tracker.data.CaptureConfig
@@ -23,6 +24,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -64,6 +67,7 @@ class TrackingService : Service() {
         startForegroundNow(getString(R.string.tracking_starting))
         ActivityTransitionReceiver.register(this)
         SyncScheduler.schedulePeriodic(this) // envío por lotes cada ~15 min mientras dure el viaje
+        startDebugSyncLoop() // en debug, sube cada 30 s para poder ver el movimiento en pruebas
         startCapture()
         return START_STICKY
     }
@@ -83,6 +87,18 @@ class TrackingService : Service() {
                 scope.launch {
                     repo.recordPoint(id, fix.lat, fix.lng, fix.accuracyMeters, fix.recordedAt)
                 }
+            }
+        }
+    }
+
+    /** Solo DEBUG: fuerza un sync cada 30 s para ver el camión moverse en pruebas. En release
+     *  manda el WorkManager periódico (15 min). */
+    private fun startDebugSyncLoop() {
+        if (!BuildConfig.DEBUG) return
+        scope.launch {
+            while (isActive) {
+                delay(DEBUG_SYNC_MS)
+                SyncScheduler.syncNow(this@TrackingService)
             }
         }
     }
@@ -166,6 +182,7 @@ class TrackingService : Service() {
     companion object {
         private const val CHANNEL_ID = "tracking"
         private const val NOTIF_ID = 1
+        private const val DEBUG_SYNC_MS = 30_000L // solo debug: sube cada 30 s en pruebas
 
         const val ACTION_START = "com.exiros.tracker.START"
         const val ACTION_STOP = "com.exiros.tracker.STOP"
