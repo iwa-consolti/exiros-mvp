@@ -8,6 +8,10 @@ Scripts auxiliares (no productivos):
   desplegar a la nube ni costo ni cuenta. Requiere `brew install cloudflared`.
   Uso: `./scripts/tunnel.sh` (o `./scripts/tunnel.sh <puerto>`). El **emulador** NO lo
   necesita: usa `http://10.0.2.2:3000`. La URL cambia en cada arranque (quick tunnel).
+- **`route-sim.sh`** — Simulador de ruta para la demo (Bloque 9.2, riesgo H3).
+  Mueve el GPS del **emulador** por una ruta interpolada `from→to` con `adb emu geo fix`
+  (lng primero), terminando en el centro de una geocerca para disparar el **cierre
+  automático**. Con un viaje EN_RUTA en la app reproduce el flujo real: captura → lote →
+  cierre AUTO_GEOFENCE. `--dry-run` previsualiza la ruta y distancias sin emulador.
+  Ej.: `./scripts/route-sim.sh --dry-run` · `./scripts/route-sim.sh --to 25.687,-100.316 --radius 300`.
 - Seed de destinos para demo (pendiente).
-- Simulador de ruta (reproduce GPX / mock locations) para la demo de cierre por
-  geocerca (H3, Bloque 9.2 — pendiente).

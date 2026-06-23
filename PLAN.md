@@ -479,7 +479,7 @@ Orden por dependencia + riesgo alto temprano. Cada slice: UI → endpoint → l�
 
 **Entrega**
 - [x] Deploy demo accesible (o túnel listo) *(túnel cloudflared, 9.1; deploy cloud pospuesto)*
-- [ ] Script simulador de ruta para la demo
+- [x] Script simulador de ruta para la demo *(route-sim.sh, 9.2)*
 - [ ] README de arranque (local) y de despliegue
 - [ ] ADRs y specs actualizadas
 - [ ] `main` limpia y verde para auditoría
@@ -614,7 +614,7 @@ Cierra los huecos que dependen de nosotros (distintos de H1–H11, que dependen 
 
 #### Fase 9 — Deploy + demo
 - [x] **9.1 `[INF]`** Túnel cloudflared (dev). **(pendiente confirmar humano)** *(2026-06-23: hecho — SOLO túnel, por decisión de Rogelio: "cloud no requerido / infra al mínimo". Deploy Railway/Render + PG managed POSPUESTO (D2 con Julio, no se hizo). `brew install cloudflared` + `scripts/tunnel.sh` = quick tunnel HTTPS contra `localhost:3000` → URL pública `*.trycloudflare.com` sin cuenta ni costo. Para teléfono físico/red externa; el emulador sigue con `10.0.2.2:3000`. **Verificado e2e:** túnel registró conexión con edge (qro01) y por la URL pública `GET /api/web/trips`→401 y `POST /auth/login {}`→400 (auth+validación responden). Gotcha: la URL tarda ~5-8s en quedar usable (esperar "Registered tunnel connection"); URL cambia en cada arranque. /health (H6) sigue pendiente para 9.x.)*
-- **9.2 `[SCRIPT]`** Simulador de ruta (reproduce GPX / mock locations) para la demo (H3).
+- [x] **9.2 `[SCRIPT]`** Simulador de ruta para la demo (H3). **(pendiente confirmar humano)** *(2026-06-23: hecho. `scripts/route-sim.sh` interpola una ruta from→to (haversine) y la reproduce con `adb emu geo fix` (lng primero) moviendo el GPS del emulador; el último tramo cae dentro del radio → cierre AUTO_GEOFENCE. Flags `--from/--to/--steps/--delay/--radius/--serial` + `--dry-run`. Default = ruta de ~1.9 km hacia el centro de "Patio Comprador Monterrey" (25.687,-100.316, r=300m). **Decisión:** `adb emu geo fix` en vez de parsear GPX — es el método que SÍ alimenta a FusedLocation en este AVD ARM (Set Location roto), ya documentado. **Verificado:** `--dry-run` produce 12 puntos con distancia monótona 1883m→0m y marca DENTRO los puntos 11-12 (≤300m); sin emulador falla limpio con mensaje. El ensayo vivo emulador→app→cierre es 9.3.)*
 - **9.3 `[DOC]`** README de arranque + ensayo de demo. **Hecho cuando:** la demo e2e corre 2 veces seguidas sin fallar.
 
 #### Fase 10 — Portal web fiel al diseño (shell + 6 pantallas)
