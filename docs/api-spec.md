@@ -40,7 +40,7 @@ ADMIN es **superset** de MONITOR (Functional Spec §2). "autenticado" en las tab
 | :-- | :--: | :--: |
 | Login, ver perfil propio | ✓ | ✓ |
 | Ver viajes (lista, activos, detalle) | ✓ | ✓ |
-| Forzar cierre de viaje (CU-06) | ✓ | ✓ |
+| Forzar cierre de viaje (CU-06) | ✗ | ✓ |
 | Exportar reporte .xlsx | ✓ | ✓ |
 | **Leer** destinos | ✓ | ✓ |
 | **Crear/editar/baja** destinos (CU-08) | ✗ | ✓ |
@@ -98,7 +98,7 @@ ADMIN es **superset** de MONITOR (Functional Spec §2). "autenticado" en las tab
 | GET | `/api/web/trips` | autenticado | listado con filtros `?status=&destinationId=&from=&to=` (alimenta tabla/reporte) |
 | GET | `/api/web/trips/active` | autenticado | viajes `EN_RUTA` + su **último punto** (alimenta el mapa, refresco 15–20 min) |
 | GET | `/api/web/trips/:id` | autenticado | detalle: campos, foto, observaciones y **ruta** (puntos) |
-| POST | `/api/web/trips/:id/close` | autenticado | **cierre forzado por admin/monitorista** (observación obligatoria) |
+| POST | `/api/web/trips/:id/close` | **solo ADMIN** | **cierre forzado por admin** (observación obligatoria) |
 
 `POST /api/web/trips/:id/close`
 ```json

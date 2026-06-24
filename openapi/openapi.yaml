@@ -274,7 +274,7 @@ paths:
     post:
       tags: [Trips (web)]
       operationId: webCloseTrip
-      summary: Cierre forzado por admin/monitorista (observación obligatoria)
+      summary: Cierre forzado por admin (observación obligatoria; solo rol ADMIN → 403 si MONITOR)
       security: [{ bearerJwt: [] }]
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       requestBody:

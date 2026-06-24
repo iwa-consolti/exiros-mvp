@@ -12,33 +12,76 @@ Núcleo del producto: **rastreo en segundo plano con < 10 % de batería por jorn
 
 ---
 
-## ▶️ Cómo levantar (local)
+## ▶️ Cómo levantar (local, cualquier SO)
 
-Requisitos: Docker, Node 20+, JDK 21, Android SDK con un emulador (AVD).
+**Requisitos:** Docker + Docker Compose · Node 20+ y npm · (para móvil) JDK 21 + Android SDK con un emulador (AVD) o teléfono físico.
+Los comandos asumen una shell `bash`/`zsh` (en Windows usa **WSL** o **Git Bash**).
+
+### 0) Clonar e instalar dependencias
 
 ```bash
-# 1) Base de datos (Postgres en Docker)
-docker compose -f infra/docker-compose.yml up -d
-
-# 2) Backend (migraciones + seed admin + build + arrancar en :3000)
-cd backend
-npx prisma migrate deploy && npx prisma db seed && npm run build
-node dist/main.js          # deja esta terminal corriendo
-
-# 3) Portal web (:5173)
-cd web && npm run dev      # otra terminal
-
-# 4) App Android (emulador)
-~/Library/Android/sdk/emulator/emulator -avd <tu-AVD> -no-snapshot-save   # otra terminal
-cd android && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew assembleDebug
-~/Library/Android/sdk/platform-tools/adb install -r app/build/outputs/apk/debug/app-debug.apk
+git clone https://github.com/RogerPerva/exiros-mvp.git && cd exiros-mvp
+( cd backend && npm install )
+( cd web && npm install )
 ```
 
-- **Portal:** http://localhost:5173 → login `admin@exiros.com` / `admin1234` (lo crea el seed; idempotente).
-- **Ver la BD:** `cd backend && npx prisma studio`.
-- ⚠️ Si el portal da 500 o el login falla, casi siempre el contenedor de Postgres se cayó (la máquina durmió). Revisa `docker ps` y re-corre el paso 1, luego reinicia `node dist/main.js`.
-- ⚠️ Tras tocar el backend, **reconstruir + reiniciar** `node dist/main.js` (un endpoint nuevo da 404 si corre el `dist` viejo).
-- El **emulador** alcanza el backend en `http://10.0.2.2:3000`. Para un **teléfono físico** o red externa, abre un túnel: `./scripts/tunnel.sh` (ver abajo).
+### 1) Base de datos (Postgres en Docker)
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+```
+
+### 2) Backend — API en `:3000`
+
+```bash
+cd backend
+cp .env.example .env          # ⚠️ define los secretos; el backend NO arranca si falta alguno
+npx prisma migrate deploy     # aplica el esquema
+npx prisma db seed            # crea el admin (idempotente)
+npm run build && node dist/main.js     # deja esta terminal corriendo
+#   alternativa en desarrollo (hot-reload, sin build): npm run start:dev
+```
+
+- Variables obligatorias (en `.env`): `DATABASE_URL`, `JWT_SECRET`, `TRIP_TOKEN_SECRET`, `APP_KEY` — si falta alguna, el arranque falla con un mensaje claro (fail-fast).
+- **Ver la BD:** `npx prisma studio`.
+
+### 3) Portal web — `:5173`
+
+```bash
+cd web
+npm run dev                   # abre http://localhost:5173
+```
+
+- Login: **`admin@exiros.com` / `admin1234`** (lo crea el seed).
+- Si el backend NO está en `http://localhost:3000`, crea `web/.env.local` con `VITE_API_URL=https://tu-backend` (y opcional `VITE_POLL_MS=30000` para refrescar rápido en pruebas).
+
+### 4) App móvil — Android (emulador o teléfono)
+
+Necesita `ANDROID_HOME` y JDK 21. Exporta las rutas del SDK si no las tienes en el `PATH`:
+
+```bash
+# macOS: $HOME/Library/Android/sdk   ·   Linux: $HOME/Android/Sdk   ·   Windows: %LOCALAPPDATA%/Android/Sdk
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
+
+emulator -list-avds                          # ver AVDs; crea uno desde Android Studio si no hay
+emulator -avd <tu-AVD> -no-snapshot-save &   # arranca el emulador
+
+cd android
+# JAVA_HOME apuntando al JDK 21 — macOS: $(/usr/libexec/java_home -v 21) · Linux/Win: ruta del JDK 21
+JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+- El **emulador** alcanza el backend del host en `http://10.0.2.2:3000` (ya configurado en el build *debug*).
+- **Teléfono físico / red externa:** abre un túnel con `./scripts/tunnel.sh` (ver abajo) y reconstruye apuntando a esa URL.
+- **Build de producción (`release`):** la URL y la clave reales son obligatorias o el build **falla** (guard anti-placeholder):
+  ```bash
+  ./gradlew assembleRelease -PEXIROS_API_URL=https://api.tu-dominio.com -PEXIROS_APP_KEY=<clave-prod>
+  ```
+
+> ⚠️ Si el portal da 500 o el login falla, casi siempre el contenedor de Postgres se cayó (la máquina durmió): revisa `docker ps` y re-corre el paso 1, luego reinicia el backend.
+> ⚠️ Tras tocar el backend, **reconstruir + reiniciar** `node dist/main.js` (un endpoint nuevo da 404 si corre el `dist` viejo); en `start:dev` recarga solo.
 
 ---
 
@@ -80,6 +123,8 @@ cd web && npm run lint && npm run build
 # Android
 cd android && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew lintDebug assembleDebug
 ```
+
+> `npm run lint` (backend) es una **verificación pura** (no auto-corrige): si falla, aplica los arreglos con `npm run lint:fix`.
 
 ---
 
