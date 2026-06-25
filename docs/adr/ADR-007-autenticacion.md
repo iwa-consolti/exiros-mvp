@@ -44,7 +44,7 @@ Capas obligatorias sobre `/api/mobile/*`:
 11. **`helmet` + CORS cerrado:** headers de seguridad; `/api/mobile/*` **sin CORS** (app nativa), `/api/web/*` restringido a `WEB_ORIGIN` (el origen del portal).
 12. **Rate-limit por IP real (`ProxyThrottlerGuard`):** `@nestjs/throttler` global (100/min por IP; **login 10/min** anti fuerza-bruta). Detrás de cloudflared el backend ve `127.0.0.1` para **todo** el tráfico → con **`TRUST_PROXY_IP=true`** el guard rastrea por la IP real (`CF-Connecting-IP`/`X-Forwarded-For`). Sin ese flag esas cabeceras **NO se confían** (son falsificables). (El quick-tunnel `trycloudflare.com` no da rate-limit de borde por sí solo → el control real es éste, en código.)
 
-### Estado de implementación (2026-06-25, ver `MEJORAS.md §2.C`)
+### Estado de implementación (2026-06-25)
 **Implementadas:** #2 tripToken Guard (anti-IDOR: `:id`==viaje del token), #3 throttler, #4 validación estricta, #5 tope body 256kb, #6 exception filter, #8 token hasheado (sha256), #9 idempotencia `batchId`/`closeRequestId`, #11 helmet+CORS, #12 rate-limit por IP real. **Extra:** `AppKeyGuard` en **tiempo constante** (`timingSafeEqual`); **foto** con extensión derivada del MIME validado (no del `originalname`). **Pendiente (post-MVP):** #10 chequeo de teletransporte (anotado, no construido).
 
 ### Upgrade path post-MVP (anotado, NO construir ahora)

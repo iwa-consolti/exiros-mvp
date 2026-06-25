@@ -2,7 +2,7 @@
 
 > Última actualización: **2026-06-25**. Estado del repo: MVP completo, todos los gates verdes,
 > seguridad endurecida. Lo que falta es **despliegue + validación humana**.
-> Marca `[x]` lo que vayas cerrando. Detalle técnico en `CONTEXT-AI.md` y `MEJORAS.md`.
+> Marca `[x]` lo que vayas cerrando. Detalle técnico en `CONTEXT-AI.md`.
 
 ---
 
@@ -54,10 +54,10 @@
 ## 🟢 OPCIONALES / deuda registrada (NO bloquean la demo)
 
 - [ ] **M4 "Finalizar viaje"** como *bottom sheet* (hoy pantalla completa) + texto "Confirmar
-      cierre" — fidelidad de diseño Android. (MEJORAS §3)
+      cierre" — fidelidad de diseño Android.
 - [ ] WebApp Fase 2/3 (partir `api.ts`, hook `useResource`, `<Modal>`/`ErrorBoundary`) — deuda
-      post-MVP, NO tocar antes de la entrega. (MEJORAS §1.B)
-- [ ] Export de Excel sin tope de filas (memoria) — irrelevante a escala MVP. (MEJORAS §2)
+      post-MVP, NO tocar antes de la entrega.
+- [ ] Export de Excel sin tope de filas (memoria) — irrelevante a escala MVP.
 - [ ] **KPI batería <10%/jornada**: NO medible sin teléfono físico → deuda honesta declarada
       (ADR-004). Si consigues el teléfono, mídelo en una jornada real.
 
@@ -65,7 +65,7 @@
 
 ## ✅ YA HECHO esta sesión (2026-06-25) — para que no lo repreguntes
 
-- Firma release del APK (keystore) · MEJORAS Fase 1 web (getStoredUser, RequireAdmin, DRY).
+- Firma release del APK (keystore) · Quick wins web (getStoredUser, RequireAdmin, DRY).
 - Auditoría backend completa + `/health` + AppKeyGuard en tiempo constante.
 - **Hardening de seguridad del endpoint público**: foto segura por MIME, rate-limit por IP real
   tras proxy, login throttle 10/min.

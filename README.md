@@ -12,6 +12,21 @@ Núcleo del producto: **rastreo en segundo plano con < 10 % de batería por jorn
 
 ---
 
+## 🧭 Cómo funciona (en 1 minuto)
+
+Tres piezas y un solo backend:
+
+1. **El operador** abre la app Android (sin login), llena el viaje (proveedor, folio, placas, destino) + **foto de la carga** y toca *Iniciar*. El backend crea el viaje y emite un **`tripToken`** (credencial por viaje + dispositivo).
+2. **La app rastrea en segundo plano** (Foreground Service): captura GPS con ahorro de batería (cadencia 2 min / 300 m, hibernación si el camión está quieto), lo guarda en una cola local (Room) y lo **envía por lotes comprimidos (GZIP)** cada ~15–20 min vía WorkManager. Sobrevive reinicios.
+3. **El backend** guarda la ruta y, en cada lote, mide la distancia (haversine) al destino: si el camión entra a la **geocerca**, **cierra el viaje automáticamente** y le dice a la app que apague el GPS. También puede cerrarse a mano (operador) o forzado por un admin desde la web.
+4. **El monitorista** entra al **portal web** (con login JWT): ve el **Mapa** en vivo, la tabla de **Viajes**, el detalle con la ruta y la foto, gestiona **Destinos/Geocercas** y **Usuarios**, y **exporta el reporte a Excel** (13 columnas del doc de alcance).
+
+**Seguridad:** la ingesta es pública (la app no tiene login), así que es la mayor superficie de ataque → defensa en capas (tripToken hasheado, rate-limit por IP, validación estricta, helmet, anti-IDOR). Detalle en **ADR-007**.
+
+**Por dónde empezar a leer el código:** `backend/src/mobile/` (ingesta + cierre), `backend/src/web/` (portal), `web/src/` (React), `android/app/src/main/java/com/exiros/tracker/` (Kotlin). Contexto y decisiones en `CONTEXT-AI.md` + `docs/`.
+
+---
+
 ## ▶️ Cómo levantar (local, cualquier SO)
 
 **Requisitos:** Docker + Docker Compose · Node 20+ y npm · (para móvil) JDK 21 + Android SDK con un emulador (AVD) o teléfono físico.
@@ -205,6 +220,14 @@ brew install cloudflared        # una vez
 
 ## 🧪 Gates de calidad (verde antes de cada commit)
 
+Atajo (backend + web, con Postgres arriba):
+
+```bash
+npm run check          # = lint + build + test de backend y web
+```
+
+Equivalente por capa:
+
 ```bash
 # Backend (e2e exige Postgres arriba)
 cd backend && npm run lint && npm run build && npm test && npm run test:e2e
@@ -215,6 +238,18 @@ cd android && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew lintDebug asse
 ```
 
 > `npm run lint` (backend) es una **verificación pura** (no auto-corrige): si falla, aplica los arreglos con `npm run lint:fix`.
+
+### Atajos disponibles (`npm run` en la raíz)
+
+| Comando | Hace |
+| :-- | :-- |
+| `npm run setup` | De cero: instala, levanta Postgres, migra, siembra el admin y compila |
+| `npm run backend` / `npm run web` | Corre la API (:3000) / el portal (:5173) |
+| `npm run check` | Todos los gates (lint + build + test) |
+| `npm run lint` / `npm run build` / `npm run test` | Por separado |
+| `npm run db:up` / `npm run db:down` / `npm run db:reset` | Postgres (Docker) |
+| `npm run migrate` / `npm run seed` | Prisma: migraciones / admin sembrado |
+| `npm run health` | Consulta `GET /api/health` |
 
 ---
 
@@ -228,7 +263,7 @@ cd android && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew lintDebug asse
 | Android | Kotlin nativo (FusedLocation + ActivityRecognition + Foreground Service + Room + WorkManager) | 004 |
 | Auth | JWT (web) + **tripToken** bearer por viaje/dispositivo (móvil) | 007 |
 | Geocerca | Círculo (centro+radio) + haversine en el service (sin PostGIS) | 012 |
-| Infra | Docker solo para Postgres local · túnel cloudflared para teléfono | 008 / 009 |
+| Infra | Docker solo para Postgres local (dev) · demo en AWS EC2 + RDS + cloudflared (HTTPS) | 008 / 009 |
 | Tests | Jest unit + Supertest e2e | 010 |
 
 > Repositorio **monorepo** split-ready (ADR-001). Cambiar el stack exige actualizar el ADR correspondiente.
@@ -239,14 +274,15 @@ cd android && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew lintDebug asse
 
 ```
 /exiros-mvp
-  /backend   # NestJS + Prisma
-  /web       # React + Vite
-  /android   # Kotlin + Compose
-  /docs      # specs + /adr + /fuente + /exiros-reference-image
-  /infra     # docker-compose
-  /openapi   # contrato openapi.yaml
-  /scripts   # tunnel.sh (túnel) · route-sim.sh (simulador de ruta para demo)
-  PLAN.md  CONTEXT-AI.md  README.md
+  /backend       # NestJS + Prisma (API: ingesta móvil + portal web)
+  /web           # React + Vite (portal del monitorista)
+  /android       # Kotlin + Compose (app del operador)
+  /docs          # specs + /adr + /fuente + /exiros-reference-image
+  /infra         # docker-compose (Postgres local)
+  /openapi       # contrato openapi.yaml
+  /scripts       # tunnel.sh (túnel) · route-sim.sh (simulador de ruta para demo)
+  package.json   # atajos npm multiplataforma (npm run setup/backend/web/check…)
+  PLAN.md  CONTEXT-AI.md  PENDIENTES.md  README.md
 ```
 
 ---
