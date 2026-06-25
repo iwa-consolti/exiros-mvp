@@ -8,15 +8,12 @@ import {
   type StaffUser,
 } from '../api';
 import { useAuth } from '../auth-context';
+import { ROLE_LABEL } from '../constants';
 import UsuarioPanel from './UsuarioPanel';
 import './page.css';
 import './destinos.css';
 import './usuarios.css';
 
-const ROLE_LABEL: Record<Role, string> = {
-  ADMIN: 'Administrador',
-  MONITOR: 'Monitorista',
-};
 const ROLE_CLASS: Record<Role, string> = {
   ADMIN: 'role--admin',
   MONITOR: 'role--monitor',
@@ -140,7 +137,10 @@ export default function UsuariosPage() {
                     ) : (
                       <button
                         title="Restaurar"
-                        onClick={() => void setUserActive(u.id, true).then(load)}
+                        onClick={async () => {
+                          await setUserActive(u.id, true);
+                          load();
+                        }}
                       >
                         <RotateCcw size={16} />
                       </button>

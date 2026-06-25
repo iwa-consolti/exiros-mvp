@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 import RouteMap from '../RouteMap';
+import { formatDateTime, formatDuration } from '../format';
 import {
   ApiError,
   closeTripAdmin,
@@ -114,7 +115,7 @@ export default function ViajeDetallePage() {
             <Field label="Placa delantera" value={trip.frontPlate} />
             <Field label="Placa trasera" value={trip.rearPlate ?? '—'} />
             <Field label="Destino" value={trip.destination?.name ?? '—'} />
-            <Field label="Inicio" value={fmt(trip.startedAt)} />
+            <Field label="Inicio" value={formatDateTime(trip.startedAt, true)} />
           </div>
 
           <div className="card">
@@ -127,8 +128,8 @@ export default function ViajeDetallePage() {
                   label="Tipo de cierre"
                   value={trip.closureType ? CLOSURE_LABEL[trip.closureType] : '—'}
                 />
-                <Field label="Fin" value={trip.endedAt ? fmt(trip.endedAt) : '—'} />
-                <Field label="Duración" value={fmtDuration(trip.durationMinutes)} />
+                <Field label="Fin" value={trip.endedAt ? formatDateTime(trip.endedAt, true) : '—'} />
+                <Field label="Duración" value={formatDuration(trip.durationMinutes)} />
                 <Field label="Observaciones" value={trip.observations ?? '—'} />
               </>
             )}
@@ -209,19 +210,3 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function fmt(iso: string): string {
-  return new Date(iso).toLocaleString('es-MX', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function fmtDuration(minutes: number | null): string {
-  if (minutes === null) return '—';
-  const hh = Math.floor(minutes / 60);
-  const mm = minutes % 60;
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-}

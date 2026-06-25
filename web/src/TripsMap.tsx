@@ -7,6 +7,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import type { Trip } from './api';
 import { deriveState, STATE_COLOR, STATE_LABEL } from './tripState';
+import { DEFAULT_CENTER } from './constants';
 
 type Base = 'mapa' | 'satelite';
 
@@ -41,7 +42,7 @@ export default function TripsMap({
 
   const center: [number, number] = plotted[0]
     ? [plotted[0].trip.lastLocation!.lat, plotted[0].trip.lastLocation!.lng]
-    : [25.6866, -100.3161];
+    : DEFAULT_CENTER;
 
   return (
     <div className="map-canvas">

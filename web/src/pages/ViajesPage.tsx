@@ -3,6 +3,7 @@ import { Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { exportReport, type ReportFilters, type Trip, type TripStatus } from '../api';
 import { useTrips } from '../useTrips';
+import { formatDateTime } from '../format';
 import './page.css';
 import './viajes.css';
 
@@ -139,7 +140,7 @@ export default function ViajesPage() {
                         {STATUS_LABEL[t.status]}
                       </span>
                     </td>
-                    <td>{formatDate(t.startedAt)}</td>
+                    <td>{formatDateTime(t.startedAt)}</td>
                     <td>
                       <button
                         className="viajes-eye"
@@ -209,14 +210,4 @@ function matches(
     if (!`${t.folio} ${t.frontPlate}`.toLowerCase().includes(q)) return false;
   }
   return true;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('es-MX', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }

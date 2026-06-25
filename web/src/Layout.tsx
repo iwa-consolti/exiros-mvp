@@ -2,12 +2,8 @@ import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Map, Truck, MapPin, Users, LogOut, PanelLeft } from 'lucide-react';
 import { useAuth } from './auth-context';
+import { ROLE_LABEL } from './constants';
 import './Layout.css';
-
-const ROLE_LABEL: Record<string, string> = {
-  ADMIN: 'Administrador',
-  MONITOR: 'Monitorista',
-};
 
 const COLLAPSE_KEY = 'exiros_sidebar_collapsed';
 
@@ -82,7 +78,7 @@ export default function Layout() {
             <span className="shell-avatar">{initials}</span>
             <span className="shell-userinfo">
               <strong>{user?.name}</strong>
-              <small>{ROLE_LABEL[user?.role ?? ''] ?? user?.role}</small>
+              <small>{user ? ROLE_LABEL[user.role] : ''}</small>
             </span>
           </div>
         </header>

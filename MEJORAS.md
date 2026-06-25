@@ -123,16 +123,16 @@ no de corrección funcional.
 
 ### 1.B — Plan de remediación
 
-#### Fase 1 — Quick wins · ✅ realista PRE-freeze (iso-funcional, archivo aislado)
-- [ ] 🔴 **Blindar `getStoredUser()`**: try/catch en `JSON.parse`; ante error `clearSession()` y
-      devolver `null`. (`api.ts`)
-- [ ] 🔴 **`<RequireAdmin>`**: guard que redirige a `/mapa` si `user.role !== 'ADMIN'`; envolver
-      `/destinos` y `/usuarios` en `App.tsx`.
-- [ ] 🟡 **`web/src/constants.ts`**: `DEFAULT_CENTER` (Monterrey) + `ROLE_LABEL` único (reusar en
-      `Layout` y `UsuariosPage`).
-- [ ] 🟡 **`web/src/format.ts`**: unificar `formatDate`/`fmt`, `fmtDuration`, `formatAgo` y
-      reemplazar copias.
-- [ ] 🟢 Unificar estilo async (quitar `.then(load)` en `UsuariosPage.tsx:143`).
+#### Fase 1 — Quick wins · ✅ HECHA 2026-06-25 (iso-funcional; commits `7bfe250` + DRY)
+- [x] 🔴 **Blindar `getStoredUser()`**: try/catch en `JSON.parse`; ante error `clearSession()` y
+      devolver `null`. (`api.ts`) — `7bfe250`.
+- [x] 🔴 **`<RequireAdmin>`**: guard que redirige a `/mapa` si `user.role !== 'ADMIN'`; envuelve
+      `/destinos` y `/usuarios` en `App.tsx`. — `7bfe250`.
+- [x] 🟡 **`web/src/constants.ts`**: `DEFAULT_CENTER` (Monterrey, 3 copias) + `ROLE_LABEL` único
+      (reusado en `Layout` y `UsuariosPage`).
+- [x] 🟡 **`web/src/format.ts`**: unificados `formatDateTime` (antes `formatDate`/`fmt`, param
+      `fullYear`), `formatDuration`, `formatAgo`; copias eliminadas.
+- [x] 🟢 Unificado estilo async (quitado `.then(load)` en `UsuariosPage`).
 
 #### Fase 2 — Separación de capas · ⏳ POST-freeze / deuda
 - [ ] 🔴 **Partir `api.ts`** en `web/src/api/`: `types.ts`, `http.ts` (cliente base + helper

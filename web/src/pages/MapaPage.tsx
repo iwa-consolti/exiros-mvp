@@ -5,6 +5,7 @@ import TripsMap from '../TripsMap';
 import { useTrips } from '../useTrips';
 import type { Trip } from '../api';
 import { deriveState, MAP_STATES, STATE_COLOR, STATE_LABEL, type MapState } from '../tripState';
+import { formatAgo } from '../format';
 import './page.css';
 import './mapa.css';
 import './viajes.css';
@@ -226,12 +227,3 @@ function matches(
 }
 
 /** "hace X min/h" a partir del timestamp de la última lectura GPS, relativo a la carga. */
-function formatAgo(iso: string | undefined, now: number): string {
-  if (!iso) return '—';
-  const mins = Math.floor((now - new Date(iso).getTime()) / 60_000);
-  if (mins < 1) return 'hace un momento';
-  if (mins < 60) return `${mins} min atrás`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m ? `${h} h ${m} min atrás` : `${h} h atrás`;
-}

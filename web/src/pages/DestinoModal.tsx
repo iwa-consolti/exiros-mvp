@@ -14,6 +14,7 @@ import {
   type Destination,
   type DestinationInput,
 } from '../api';
+import { DEFAULT_CENTER } from '../constants';
 import './destinos.css';
 
 const RADIUS_MIN = 100;
@@ -40,8 +41,8 @@ export default function DestinoModal({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(destino?.name ?? '');
-  const [lat, setLat] = useState(destino?.centerLat ?? 25.6866);
-  const [lng, setLng] = useState(destino?.centerLng ?? -100.3161);
+  const [lat, setLat] = useState(destino?.centerLat ?? DEFAULT_CENTER[0]);
+  const [lng, setLng] = useState(destino?.centerLng ?? DEFAULT_CENTER[1]);
   const [radius, setRadius] = useState(destino?.radiusMeters ?? 100);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

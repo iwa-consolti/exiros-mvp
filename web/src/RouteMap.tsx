@@ -1,13 +1,14 @@
 import { Circle, CircleMarker, MapContainer, Polyline, Popup, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { TripDetail } from './api';
+import { DEFAULT_CENTER } from './constants';
 
 /** Mapa "Ruta recorrida" del detalle (W3): polilínea de la ruta + inicio/fin + geocerca. */
 export default function RouteMap({ trip }: { trip: TripDetail }) {
   const pts = trip.route.map((p) => [p.lat, p.lng] as [number, number]);
   const dest = trip.destination;
   const center: [number, number] = pts[0] ??
-    (dest ? [dest.centerLat, dest.centerLng] : [25.6866, -100.3161]);
+    (dest ? [dest.centerLat, dest.centerLng] : DEFAULT_CENTER);
   const start = pts[0];
   const end = pts[pts.length - 1];
 
