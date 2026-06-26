@@ -552,6 +552,38 @@ describe('Flujo móvil (e2e)', () => {
     expect(res.status).toBe(401);
   });
 
+  it('usuario desactivado → su token deja de operar (401) en el siguiente request (H-1)', async () => {
+    const email = `e2e-inactive-${Date.now()}@exiros.com`;
+    const password = 'e2e-pass-9999';
+    await prisma.user.create({
+      data: {
+        email,
+        name: 'E2E Baja',
+        passwordHash: await bcrypt.hash(password, 10),
+        role: Role.MONITOR,
+      },
+    });
+    const login = await request(app.getHttpServer())
+      .post('/api/web/auth/login')
+      .send({ email, password });
+    const token = (login.body as { accessToken: string }).accessToken;
+
+    // Con el usuario activo el token funciona.
+    const ok = await request(app.getHttpServer())
+      .get('/api/web/trips')
+      .set('Authorization', `Bearer ${token}`);
+    expect(ok.status).toBe(200);
+
+    // Se da de baja al usuario; el MISMO token ya no debe operar.
+    await prisma.user.update({ where: { email }, data: { isActive: false } });
+    const denied = await request(app.getHttpServer())
+      .get('/api/web/trips')
+      .set('Authorization', `Bearer ${token}`);
+    expect(denied.status).toBe(401);
+
+    await prisma.user.delete({ where: { email } }).catch(() => undefined);
+  });
+
   it('GET /web/auth/me con token → 200 perfil del admin', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/web/auth/me')
