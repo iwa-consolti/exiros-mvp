@@ -6,10 +6,10 @@ import type { Trip } from './api';
  */
 export type MapState = 'EN_RUTA' | 'DETENIDO' | 'CONCLUIDO';
 
-/** Detenido: viaje EN_RUTA sin lecturas GPS nuevas por más de 30 min (decisión Rogelio 2026-06-23).
+/** Detenido: viaje EN_RUTA sin lecturas GPS nuevas por más de 3 min (ajuste demo 2026-06-26).
  *  Funciona porque la app hiberna el GPS al detectar el camión quieto (acelerómetro) → deja de
- *  reportar; 30 min cubre de sobra el ciclo de envío por lotes (15–20 min). */
-const STOPPED_MS = 30 * 60 * 1000;
+ *  reportar; 3 min permite demostrar el estado sin esperar el ciclo real de 15–20 min. */
+const STOPPED_MS = 3 * 60 * 1000;
 
 export function deriveState(t: Trip, now: number = Date.now()): MapState {
   if (t.status === 'CONCLUIDO') return 'CONCLUIDO';
