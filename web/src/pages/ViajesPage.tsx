@@ -140,8 +140,24 @@ export default function ViajesPage() {
           <option value="EN_RUTA">En ruta</option>
           <option value="CONCLUIDO">Concluido</option>
         </select>
-        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        <label className="viajes-date-filter" title="Filtra viajes iniciados desde esta fecha">
+          <span>Inicio desde</span>
+          <input
+            type="date"
+            aria-label="Fecha inicial de inicio del viaje"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </label>
+        <label className="viajes-date-filter" title="Filtra viajes iniciados hasta esta fecha">
+          <span>Inicio hasta</span>
+          <input
+            type="date"
+            aria-label="Fecha final de inicio del viaje"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </label>
         <select value={destino} onChange={(e) => setDestino(e.target.value)}>
           <option value="">Destino: Todos</option>
           {destinos.map((d) => (

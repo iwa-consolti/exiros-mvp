@@ -27,6 +27,22 @@
   flex: 1;
   min-width: 220px;
 }
+.viajes-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 0.65rem;
+}
+.viajes-date-filter span {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .viajes-filters input,
 .viajes-filters select {
   border: 1px solid #cbd5e1;
@@ -34,6 +50,19 @@
   padding: 0.5rem 0.7rem;
   font-size: 0.85rem;
   font-family: inherit;
+}
+.viajes-date-filter input {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  min-width: 120px;
+}
+.viajes-date-filter input:focus {
+  outline: none;
+}
+.viajes-date-filter:focus-within {
+  border-color: #1d6fe0;
+  box-shadow: 0 0 0 2px rgba(29, 111, 224, 0.14);
 }
 /* "Limpiar filtros": mismo look que el del Mapa (.map-clear) para consistencia. */
 .viajes-clear {
