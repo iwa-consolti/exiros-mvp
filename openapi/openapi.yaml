@@ -267,7 +267,7 @@ paths:
     get:
       tags: [Trips (web)]
       operationId: webListActiveTrips
-      summary: Viajes EN_RUTA con su último punto (alimenta el mapa, polling 15–20 min)
+      summary: Viajes con su último punto (alimenta el mapa, polling 15–20 min). Incluye concluidos para mostrar su punto final; el portal filtra por defecto a los activos.
       security: [{ bearerJwt: [] }]
       responses:
         '200':
@@ -725,6 +725,7 @@ components:
         batchId: { type: string, format: uuid, description: "idempotencia de lote" }
         points:
           type: array
+          maxItems: 1000
           items: { $ref: '#/components/schemas/LocationPoint' }
     IngestResponse:
       type: object

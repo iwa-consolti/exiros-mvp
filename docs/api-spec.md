@@ -115,7 +115,7 @@ ADMIN es **superset** de MONITOR (Functional Spec §2). "autenticado" en las tab
 | :-- | :-- | :-- |
 | GET | `/api/web/reports/export` | descarga **.xlsx** con las **13 columnas exactas** (RN-07). Filtros `?from=&to=&status=&destinationId=` |
 
-Respuesta: `200` con `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (binario). Columnas, en orden: ID de Viaje · Núm. de Proveedor · Nombre de Proveedor · Folio/Remito · Placa Delantera · Placa Trasera · Destino · Fecha/Hora Inicio · Fecha/Hora Fin · Duración Total (HH:MM) · Estatus · Tipo de Cierre · Observaciones.
+Respuesta: `200` con `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (binario). Columnas, en orden (títulos exactos, fuente única `REPORT_HEADERS` en `reports.service.ts`): ID de Viaje · Número de Proveedor · Nombre de Proveedor · Folio de Viaje / Remito · Placa Delantera · Placa Trasera · Destino · Fecha / Hora de Inicio · Fecha / Hora de Fin · Duración Total del Viaje · Estatus del Viaje · Tipo de Cierre · Observaciones.
 
 ---
 
@@ -207,7 +207,7 @@ Reglas:
 | `recordedAt` **no futuro** | ≤ ahora + 2 min de tolerancia de reloj | punto rechazado |
 | `accuracyMeters` | número finito, > 0; para geocerca debe ser ≤ umbral configurable (inicial 50 m, pendiente tabla de negocio) | se almacena, pero no es candidato al cierre si excede umbral |
 | **NO** filtrar "fuera de geocerca" | toda la ruta vive fuera de la geocerca | — (no validar) |
-| Tamaño de lote | máx. N puntos por lote (ej. 500) | `413` |
+| Tamaño de lote | máx. **1000** puntos por lote (`@ArrayMaxSize(1000)`) | `400` (validación) |
 | Tamaño de body / GZIP | tope al descomprimir (anti zip-bomb) | `413` |
 | Campos desconocidos | `whitelist` + `forbidNonWhitelisted` | `400` |
 | Rate-limit | por tripToken (ingesta) y por IP (bootstrap) | `429` |
